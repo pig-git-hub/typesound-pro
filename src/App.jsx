@@ -170,7 +170,7 @@ const App = () => {
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <label style={{ background: '#f97316', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>📂 動画読込<input type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => e.target.files[0] && setVideoSrc(URL.createObjectURL(e.target.files[0]))} /></label>
-            <label style={{ background: '#3b82f6', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>🎵 音源読込<input type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleSoundUpload} /></label>
+            <label style={{ background: '#3b82f6', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>🎵 音読込<input type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleSoundUpload} /></label>
           </div>
           <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} style={{ background: '#27272a', color: 'white', border: '1px solid #3f3f46', padding: '5px', borderRadius: '8px', fontSize: '11px' }}>
             <option value="default">予備サイン音</option>
@@ -180,38 +180,55 @@ const App = () => {
 
         <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', justifyContent: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {/* ★ プレビュー枠 */}
+            {/* プレビュー枠 */}
             <div style={{ 
               position: 'relative', width: aspectRatio === 'portrait' ? '300px' : '533px', height: aspectRatio === 'portrait' ? '533px' : '300px', 
               background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto'
             }}>
               {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} playsInline />}
               
-              {/* ★ テキストエリア：Gridで中央寄せ、中の要素は100%の自由度を持たせる */}
+              {/* ★ 入力・表示エリア：プレビュー枠いっぱいに広げる */}
               <div style={{ 
-                position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', 
+                position: 'absolute', inset: 0, 
+                display: 'flex', alignItems: 'center', justifyContent: 'center', // 垂直・水平中央
                 padding: '10px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' 
               }}>
                 {!isPlaying ? (
                   <textarea 
                     style={{ 
-                      width: '100%', height: 'auto', maxHeight: '100%', 
-                      background: 'transparent', border: 'none', outline: 'none', 
-                      fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', 
-                      color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', 
-                      fontFamily: 'inherit', lineHeight: '1.2', overflowY: 'auto'
+                      width: '100%', 
+                      height: '100%', // ★ ここを100%に。これで上の行が消えません。
+                      background: 'transparent', 
+                      border: 'none', 
+                      outline: 'none', 
+                      fontSize: `${currentScript.fontSize}px`, 
+                      fontWeight: 'bold', 
+                      textAlign: 'center', 
+                      color: currentScript.textColor, 
+                      textShadow: heavyStroke, 
+                      resize: 'none', 
+                      fontFamily: 'inherit', 
+                      lineHeight: '1.2',
+                      // ★ 入力中の文字も中央付近に見えるように調整
+                      display: 'flex',
+                      paddingTop: '20%' 
                     }} 
-                    rows={4}
                     value={currentScript.text} 
                     onChange={(e) => updateActive('text', e.target.value)} 
                     onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")} 
                   />
                 ) : (
                   <p style={{ 
-                    width: '100%', maxHeight: '100%', fontSize: `${currentScript.fontSize}px`, 
-                    fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, 
-                    textShadow: heavyStroke, whiteSpace: 'pre-wrap', wordBreak: 'break-all', 
-                    margin: 0, lineHeight: '1.2', overflowY: 'auto'
+                    width: '100%', 
+                    fontSize: `${currentScript.fontSize}px`, 
+                    fontWeight: 'bold', 
+                    textAlign: 'center', 
+                    color: currentScript.textColor, 
+                    textShadow: heavyStroke, 
+                    whiteSpace: 'pre-wrap', 
+                    wordBreak: 'break-all', 
+                    margin: 0, 
+                    lineHeight: '1.2' 
                   }}>{displayText}</p>
                 )}
               </div>
