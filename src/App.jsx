@@ -128,7 +128,7 @@ const App = () => {
     typingTimer.current = setInterval(() => {
       if (i < fullText.length) {
         const char = fullText[i];
-        if (char !== undefined) { // ★ undefined対策
+        if (char !== undefined) {
           setDisplayText((prev) => prev + char);
           if (char !== " " && char !== "\n") playSound();
         }
@@ -180,13 +180,39 @@ const App = () => {
 
         <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', justifyContent: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ position: 'relative', width: aspectRatio === 'portrait' ? '300px' : '533px', height: aspectRatio === 'portrait' ? '533px' : '300px', background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
+            {/* ★ プレビュー枠 */}
+            <div style={{ 
+              position: 'relative', width: aspectRatio === 'portrait' ? '300px' : '533px', height: aspectRatio === 'portrait' ? '533px' : '300px', 
+              background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto'
+            }}>
               {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} playsInline />}
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' }}>
+              
+              {/* ★ テキストエリア：Gridで中央寄せ、中の要素は100%の自由度を持たせる */}
+              <div style={{ 
+                position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', 
+                padding: '10px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' 
+              }}>
                 {!isPlaying ? (
-                  <textarea style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', fontFamily: 'inherit', lineHeight: '1.2' }} value={currentScript.text} onChange={(e) => updateActive('text', e.target.value)} onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")} />
+                  <textarea 
+                    style={{ 
+                      width: '100%', height: 'auto', maxHeight: '100%', 
+                      background: 'transparent', border: 'none', outline: 'none', 
+                      fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', 
+                      color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', 
+                      fontFamily: 'inherit', lineHeight: '1.2', overflowY: 'auto'
+                    }} 
+                    rows={4}
+                    value={currentScript.text} 
+                    onChange={(e) => updateActive('text', e.target.value)} 
+                    onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")} 
+                  />
                 ) : (
-                  <p style={{ fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, textShadow: heavyStroke, whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, lineHeight: '1.2' }}>{displayText}</p>
+                  <p style={{ 
+                    width: '100%', maxHeight: '100%', fontSize: `${currentScript.fontSize}px`, 
+                    fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, 
+                    textShadow: heavyStroke, whiteSpace: 'pre-wrap', wordBreak: 'break-all', 
+                    margin: 0, lineHeight: '1.2', overflowY: 'auto'
+                  }}>{displayText}</p>
                 )}
               </div>
             </div>
@@ -194,11 +220,10 @@ const App = () => {
             <div style={{ background: '#18181b', padding: '12px', borderRadius: '20px', border: '1px solid #27272a', width: aspectRatio === 'portrait' ? '300px' : '533px' }}>
               <input type="range" min="0" max={duration || 100} step="0.01" value={currentTime} onChange={(e) => { if(videoRef.current) videoRef.current.currentTime = parseFloat(e.target.value); }} style={{ width: '100%', accentColor: '#f97316', marginBottom: '10px' }} />
               
-              {/* ★ レイヤー追加ボタンの復活 */}
               <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', marginBottom: '10px' }}>
                 <button onClick={() => {
                   const newId = Date.now().toString();
-                  setScripts([...scripts, { id: newId, startTime: currentTime, text: "新しいレイヤー", fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" }]);
+                  setScripts([...scripts, { id: newId, startTime: currentTime, text: "追加レイヤー", fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" }]);
                   setActiveId(newId);
                 }} style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>➕ 追加</button>
                 {scripts.map(s => (
@@ -213,7 +238,6 @@ const App = () => {
           <div style={{ width: '55px', display: 'flex', flexDirection: 'column', gap: '15px', background: '#18181b', padding: '15px 5px', borderRadius: '15px', border: '1px solid #27272a', alignItems: 'center' }}>
             <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>VOL</span><input type="range" min="0" max="1" step="0.1" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
             <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>SIZE</span><input type="range" min="10" max="150" value={currentScript.fontSize} onChange={(e) => updateActive('fontSize', parseInt(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
-            {/* ★ スピードメーター（SPD）の復活 */}
             <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>SPD</span><input type="range" min="20" max="500" step="10" value={currentScript.speed} onChange={(e) => updateActive('speed', parseInt(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
             <button onClick={() => setShowColorPicker(!showColorPicker)} style={{ background: '#27272a', border: 'none', borderRadius: '8px', width: '35px', height: '35px', fontSize: '14px', cursor: 'pointer' }}>🎨</button>
           </div>
