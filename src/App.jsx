@@ -61,7 +61,7 @@ const App = () => {
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
       const id = `local-${Date.now()}`;
       audioBuffersRef.current[id] = audioBuffer;
-      setSoundBank(prev => [{ id, name: `(読込中) ${file.name}` }, ...prev]);
+      setSoundBank(prev => [{ id, name: `🎵 ${file.name}` }, ...prev]);
       setSelectedSoundId(id);
     } catch (err) { alert("音源エラー"); }
   };
@@ -80,7 +80,7 @@ const App = () => {
             const resp = await fetch(data.downloadURL);
             const ab = await resp.arrayBuffer();
             audioBuffersRef.current[doc.id] = await ctx.decodeAudioData(ab);
-          } catch (e) { console.error("Firebase Sound Error", e); }
+          } catch (e) { console.error("Sound Load Error", e); }
         }
       });
       setSoundBank(prev => [...prev.filter(s => s.id.startsWith('local-')), ...sounds]);
@@ -145,23 +145,18 @@ const App = () => {
   const handleTogglePlay = async () => {
     if (!videoRef.current || !videoSrc) return;
     await initAudio();
-    
     if (isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
       if (typingTimer.current) clearInterval(typingTimer.current);
     } else {
-      // 動画が最後なら最初からにする
       if (videoRef.current.currentTime >= duration) {
         videoRef.current.currentTime = 0;
         prevTimeRef.current = 0;
       }
       setDisplayText("");
       setIsPlaying(true);
-      videoRef.current.play().catch(e => {
-        console.error("Play failed:", e);
-        setIsPlaying(false);
-      });
+      videoRef.current.play();
     }
   };
 
@@ -169,99 +164,160 @@ const App = () => {
     setScripts(scripts.map(s => s.id === activeId ? { ...s, [key]: val } : s));
   };
 
+  const deleteScript = (id) => {
+    if (scripts.length <= 1) return;
+    const nextScripts = scripts.filter(s => s.id !== id);
+    setScripts(nextScripts);
+    setActiveId(nextScripts[0].id);
+  };
+
   const currentScript = scripts.find(s => s.id === activeId) || scripts[0];
   const heavyStroke = `2px 2px 0 ${currentScript.outlineColor}, -2px -2px 0 ${currentScript.outlineColor}, 2px -2px 0 ${currentScript.outlineColor}, -2px 2px 0 ${currentScript.outlineColor}, 4px 4px 10px rgba(0,0,0,0.5)`;
 
+  const SliderGroup = ({ label, icon, value, min, max, step, onChange }) => (
+    <div style={{ marginBottom: '15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '5px', color: '#a1a1aa' }}>
+        <span>{icon} {label}</span>
+        <span style={{ color: '#f97316', fontWeight: 'bold' }}>{value}</span>
+      </div>
+      <input 
+        type="range" min={min} max={max} step={step} value={value} 
+        onChange={(e) => onChange(e.target.value)}
+        style={{ width: '100%', height: '10px', background: '#27272a', borderRadius: '5px', appearance: 'none', outline: 'none' }}
+      />
+    </div>
+  );
+
   return (
-    <div style={{ backgroundColor: '#09090b', minHeight: '100vh', color: '#e4e4e7', padding: '10px', fontFamily: 'sans-serif' }}>
-      <div style={{ maxWidth: '850px', margin: '0 auto' }}>
+    <div style={{ backgroundColor: '#09090b', minHeight: '100vh', color: '#e4e4e7', paddingBottom: '120px', fontFamily: '-apple-system, sans-serif' }}>
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '10px' }}>
         
-        <header style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', background: '#18181b', padding: '10px', borderRadius: '15px', border: '1px solid #27272a' }}>
-          <div style={{ display: 'flex', gap: '5px' }}>
-            <button onClick={() => setAspectRatio('portrait')} style={{ background: aspectRatio === 'portrait' ? '#f97316' : '#27272a', border: 'none', padding: '6px 10px', borderRadius: '8px', color: 'white', fontSize: '11px', cursor: 'pointer' }}>📱 縦</button>
-            <button onClick={() => setAspectRatio('landscape')} style={{ background: aspectRatio === 'landscape' ? '#f97316' : '#27272a', border: 'none', padding: '6px 10px', borderRadius: '8px', color: 'white', fontSize: '11px', cursor: 'pointer' }}>💻 横</button>
+        <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', gap: '8px' }}>
+          <div style={{ display: 'flex', background: '#18181b', borderRadius: '10px', padding: '3px' }}>
+            <button onClick={() => setAspectRatio('portrait')} style={{ background: aspectRatio === 'portrait' ? '#f97316' : 'transparent', border: 'none', padding: '8px 12px', borderRadius: '8px', color: 'white', fontSize: '12px' }}>📱 縦</button>
+            <button onClick={() => setAspectRatio('landscape')} style={{ background: aspectRatio === 'landscape' ? '#f97316' : 'transparent', border: 'none', padding: '8px 12px', borderRadius: '8px', color: 'white', fontSize: '12px' }}>💻 横</button>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <label style={{ background: '#f97316', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>📂 動画読込<input type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => e.target.files[0] && setVideoSrc(URL.createObjectURL(e.target.files[0]))} /></label>
-            <label style={{ background: '#3b82f6', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>🎵 音源読込<input type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleSoundUpload} /></label>
-          </div>
-          <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} style={{ background: '#27272a', color: 'white', border: '1px solid #3f3f46', padding: '5px', borderRadius: '8px', fontSize: '11px' }}>
-            <option value="default">予備サイン音</option>
-            {soundBank.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
+          <label style={{ background: '#f97316', padding: '10px 15px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>📂 動画読込<input type="file" accept="video/*" style={{ display: 'none' }} onChange={(e) => e.target.files[0] && setVideoSrc(URL.createObjectURL(e.target.files[0]))} /></label>
         </header>
 
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', justifyContent: 'center' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ position: 'relative', width: aspectRatio === 'portrait' ? '300px' : '533px', height: aspectRatio === 'portrait' ? '533px' : '300px', background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
-              {videoSrc && (
-                <video 
-                  ref={videoRef} 
-                  key={videoSrc} // ★ 動画変更時にリセットされるようKeyを追加
-                  src={videoSrc} 
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-                  onTimeUpdate={handleTimeUpdate} 
-                  onLoadedMetadata={(e) => { setDuration(e.target.duration); prevTimeRef.current = 0; }} 
-                  onEnded={() => setIsPlaying(false)} // ★ 終わったらボタンを戻す
-                  playsInline 
-                />
-              )}
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' }}>
-                {!isPlaying ? (
-                  <textarea style={{ width: '100%', height: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', fontFamily: 'inherit', lineHeight: '1.2', display: 'flex', alignItems: 'center' }} value={currentScript.text} onChange={(e) => updateActive('text', e.target.value)} onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")} />
-                ) : (
-                  <p style={{ width: '100%', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, textShadow: heavyStroke, whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, lineHeight: '1.2' }}>{displayText}</p>
-                )}
-              </div>
-            </div>
+        {/* プレビュー・入力エリア */}
+        <div style={{ 
+          position: 'relative', width: aspectRatio === 'portrait' ? '100%' : '100%', 
+          aspectRatio: aspectRatio === 'portrait' ? '9/16' : '16/9',
+          maxHeight: '65vh', background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1.5px solid #27272a', margin: '0 auto 15px'
+        }}>
+          {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} onEnded={() => setIsPlaying(false)} playsInline />}
+          
+          <div style={{ 
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto'
+          }}>
+            {!isPlaying ? (
+              <textarea 
+                style={{ 
+                  width: '100%', height: '100%', background: 'transparent', border: 'none', outline: 'none',
+                  fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center',
+                  color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', 
+                  fontFamily: 'inherit', lineHeight: '1.2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  paddingTop: '35%'
+                }} 
+                value={currentScript.text} 
+                onChange={(e) => updateActive('text', e.target.value)}
+                onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")}
+              />
+            ) : (
+              <p style={{ 
+                width: '100%', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center',
+                color: currentScript.textColor, textShadow: heavyStroke, whiteSpace: 'pre-wrap', margin: 0, lineHeight: '1.2'
+              }}>{displayText}</p>
+            )}
+          </div>
+        </div>
 
-            <div style={{ background: '#18181b', padding: '12px', borderRadius: '20px', border: '1px solid #27272a', width: aspectRatio === 'portrait' ? '300px' : '533px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px', fontWeight: 'bold', color: '#f97316' }}>
-                <span>{currentTime.toFixed(2)}s</span>
-                <span>{duration.toFixed(2)}s</span>
-              </div>
-              <input type="range" min="0" max={duration || 100} step="0.01" value={currentTime} onChange={(e) => {
-                  const nt = parseFloat(e.target.value);
-                  if(videoRef.current) videoRef.current.currentTime = nt;
-                  setCurrentTime(nt);
-                  prevTimeRef.current = nt;
-                  setDisplayText("");
-                }} style={{ width: '100%', accentColor: '#f97316', marginBottom: '10px' }} />
-              
-              <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', marginBottom: '10px' }}>
-                <button onClick={() => {
-                  const newId = Date.now().toString();
-                  setScripts([...scripts, { id: newId, startTime: currentTime, text: "追加レイヤー", fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" }]);
-                  setActiveId(newId);
-                }} style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>➕ 追加</button>
-                {scripts.map(s => (
-                  <button key={s.id} onClick={() => { setActiveId(s.id); if(videoRef.current) videoRef.current.currentTime = s.startTime; setCurrentTime(s.startTime); prevTimeRef.current = s.startTime; setDisplayText(""); }} style={{ background: activeId === s.id ? '#f97316' : '#27272a', border: 'none', padding: '8px 10px', borderRadius: '8px', fontSize: '10px', color: 'white' }}>{s.startTime.toFixed(2)}s</button>
-                ))}
-              </div>
-              <button onClick={handleTogglePlay} style={{ width: '100%', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '12px', borderRadius: '12px', color: 'white', fontWeight: '900', cursor: 'pointer' }}>{isPlaying ? '⏸ STOP' : '▶️ PLAY'}</button>
-            </div>
+        {/* タイムライン操作 */}
+        <div style={{ background: '#18181b', padding: '15px', borderRadius: '20px', border: '1px solid #27272a', marginBottom: '15px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px', color: '#f97316', fontWeight: 'bold' }}>
+            <span>{currentTime.toFixed(2)}s</span>
+            <span>{duration.toFixed(2)}s</span>
+          </div>
+          <input type="range" min="0" max={duration || 100} step="0.01" value={currentTime} onChange={(e) => {
+            const nt = parseFloat(e.target.value);
+            if(videoRef.current) videoRef.current.currentTime = nt;
+            setCurrentTime(nt);
+            prevTimeRef.current = nt;
+            setDisplayText("");
+          }} style={{ width: '100%', height: '25px', appearance: 'none', background: 'transparent', cursor: 'pointer' }} className="timeline-slider" />
+          
+          <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', padding: '5px 0' }}>
+            <button onClick={() => {
+              const newId = Date.now().toString();
+              setScripts([...scripts, { id: newId, startTime: currentTime, text: "新規レイヤー", fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" }]);
+              setActiveId(newId);
+            }} style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '10px 18px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>➕ 追加</button>
+            {scripts.map(s => (
+              <button key={s.id} onClick={() => { setActiveId(s.id); if(videoRef.current) videoRef.current.currentTime = s.startTime; setCurrentTime(s.startTime); prevTimeRef.current = s.startTime; }} style={{ 
+                background: activeId === s.id ? '#f97316' : '#27272a', border: activeId === s.id ? '2px solid white' : 'none', 
+                padding: '10px 15px', borderRadius: '10px', fontSize: '12px', color: 'white', whiteSpace: 'nowrap'
+              }}>{s.startTime.toFixed(1)}s</button>
+            ))}
+          </div>
+        </div>
+
+        {/* 調整パネル：特大スライダー */}
+        <div style={{ background: '#18181b', padding: '20px', borderRadius: '20px', border: '1px solid #27272a' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+            <label style={{ background: '#3b82f6', padding: '10px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', flex: 1, textAlign: 'center', marginRight: '5px' }}>🎵 音源読込<input type="file" accept="audio/*" style={{ display: 'none' }} onChange={handleSoundUpload} /></label>
+            <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} style={{ flex: 1, background: '#27272a', color: 'white', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '12px' }}>
+              <option value="default">標準音</option>
+              {soundBank.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
           </div>
 
-          <div style={{ width: '55px', display: 'flex', flexDirection: 'column', gap: '15px', background: '#18181b', padding: '15px 5px', borderRadius: '15px', border: '1px solid #27272a', alignItems: 'center' }}>
-            <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>VOL</span><input type="range" min="0" max="1" step="0.1" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
-            <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>SIZE</span><input type="range" min="10" max="150" value={currentScript.fontSize} onChange={(e) => updateActive('fontSize', parseInt(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
-            <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>SPD</span><input type="range" min="20" max="500" step="10" value={currentScript.speed} onChange={(e) => updateActive('speed', parseInt(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
-            <button onClick={() => setShowColorPicker(!showColorPicker)} style={{ background: '#27272a', border: 'none', borderRadius: '8px', width: '35px', height: '35px', fontSize: '14px', cursor: 'pointer' }}>🎨</button>
+          <SliderGroup label="ボリューム" icon="🔊" min="0" max="1" step="0.1" value={volume} onChange={setVolume} />
+          <SliderGroup label="文字サイズ" icon="🅰️" min="10" max="150" step="1" value={currentScript.fontSize} onChange={(v) => updateActive('fontSize', parseInt(v))} />
+          <SliderGroup label="打込スピード" icon="⚡" min="20" max="500" step="10" value={currentScript.speed} onChange={(v) => updateActive('speed', parseInt(v))} />
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+            <button onClick={() => setShowColorPicker(!showColorPicker)} style={{ flex: 2, background: '#27272a', border: '1.5px solid #3f3f46', borderRadius: '12px', padding: '12px', color: 'white', fontWeight: 'bold' }}>🎨 色・縁取り</button>
+            <button onClick={() => deleteScript(activeId)} style={{ flex: 1, background: '#ef4444', border: 'none', borderRadius: '12px', color: 'white', fontWeight: 'bold' }}>🗑 削除</button>
           </div>
         </div>
       </div>
 
+      {/* フッター：固定再生ボタン */}
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '20px', background: 'linear-gradient(transparent, #000)', zIndex: 100 }}>
+        <button onClick={handleTogglePlay} style={{ width: '100%', maxWidth: '600px', margin: '0 auto', display: 'block', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '18px', borderRadius: '18px', color: 'white', fontWeight: '900', fontSize: '18px', boxShadow: '0 4px 20px rgba(249, 115, 22, 0.4)' }}>
+          {isPlaying ? '⏸ プレビュー停止' : '▶️ プレビュー再生'}
+        </button>
+      </div>
+
       {showColorPicker && (
-        <div style={{ position: 'fixed', bottom: '80px', right: '20px', background: '#18181b', padding: '10px', borderRadius: '12px', border: '1px solid #f97316', zIndex: 100 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '100px' }}>
-            {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('textColor', c)} style={{ background: c, border: currentScript.textColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%', cursor: 'pointer' }} />)}
-          </div>
-          <div style={{ height: '1px', background: '#27272a', margin: '8px 0' }} />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '100px' }}>
-            {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('outlineColor', c)} style={{ background: c, border: currentScript.outlineColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%', cursor: 'pointer' }} />)}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowColorPicker(false)}>
+          <div style={{ background: '#18181b', padding: '20px', borderRadius: '25px', border: '2px solid #f97316', width: '280px' }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '12px', marginBottom: '10px' }}>文字の色</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+              {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('textColor', c)} style={{ background: c, border: currentScript.textColor === c ? '3px solid #f97316' : '1px solid #3f3f46', width: '40px', height: '40px', borderRadius: '10px' }} />)}
+            </div>
+            <p style={{ fontSize: '12px', marginBottom: '10px' }}>縁取りの色</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('outlineColor', c)} style={{ background: c, border: currentScript.outlineColor === c ? '3px solid #f97316' : '1px solid #3f3f46', width: '40px', height: '40px', borderRadius: '10px' }} />)}
+            </div>
+            <button onClick={() => setShowColorPicker(false)} style={{ width: '100%', marginTop: '20px', background: '#f97316', border: 'none', padding: '10px', borderRadius: '10px', color: 'white', fontWeight: 'bold' }}>決定</button>
           </div>
         </div>
       )}
+
+      <style>{`
+        .timeline-slider::-webkit-slider-thumb {
+          appearance: none;
+          width: 25px;
+          height: 25px;
+          background: #f97316;
+          border-radius: 50%;
+          border: 3px solid white;
+          cursor: pointer;
+        }
+      `}</style>
     </div>
   );
 };
