@@ -83,10 +83,7 @@ const App = () => {
           } catch (e) { console.error("Firebase Sound Error", e); }
         }
       });
-      setSoundBank(prev => {
-        const local = prev.filter(s => s.id.startsWith('local-'));
-        return [...local, ...sounds];
-      });
+      setSoundBank(prev => [...prev.filter(s => s.id.startsWith('local-')), ...sounds]);
     });
   }, [user]);
 
@@ -190,7 +187,6 @@ const App = () => {
             }}>
               {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} playsInline />}
               
-              {/* 入力エリア：上下に広がる余裕を持たせつつ中央寄せ */}
               <div style={{ 
                 position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', 
                 padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' 
@@ -218,7 +214,18 @@ const App = () => {
             </div>
 
             <div style={{ background: '#18181b', padding: '12px', borderRadius: '20px', border: '1px solid #27272a', width: aspectRatio === 'portrait' ? '300px' : '533px' }}>
-              <input type="range" min="0" max={duration || 100} step="0.01" value={currentTime} onChange={(e) => { if(videoRef.current) videoRef.current.currentTime = parseFloat(e.target.value); }} style={{ width: '100%', accentColor: '#f97316', marginBottom: '10px' }} />
+              {/* ★ 時間メーター：再生中も停止中も、スライダーの動きに100%追従するように修正 */}
+              <input 
+                type="range" min="0" max={duration || 100} step="0.01" value={currentTime} 
+                onChange={(e) => {
+                  const newTime = parseFloat(e.target.value);
+                  if(videoRef.current) videoRef.current.currentTime = newTime;
+                  setCurrentTime(newTime); // ← これで停止中も動くようになります
+                  lastTriggeredId.current = null;
+                  setDisplayText("");
+                }} 
+                style={{ width: '100%', accentColor: '#f97316', marginBottom: '10px' }} 
+              />
               
               <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', marginBottom: '10px' }}>
                 <button onClick={() => {
@@ -227,7 +234,13 @@ const App = () => {
                   setActiveId(newId);
                 }} style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>➕ 追加</button>
                 {scripts.map(s => (
-                  <button key={s.id} onClick={() => { setActiveId(s.id); if(videoRef.current) videoRef.current.currentTime = s.startTime; }} style={{ background: activeId === s.id ? '#f97316' : '#27272a', border: 'none', padding: '8px 10px', borderRadius: '8px', fontSize: '10px', color: 'white' }}>{s.startTime.toFixed(1)}s</button>
+                  <button key={s.id} onClick={() => { 
+                    setActiveId(s.id); 
+                    if(videoRef.current) videoRef.current.currentTime = s.startTime;
+                    setCurrentTime(s.startTime);
+                    lastTriggeredId.current = null;
+                    setDisplayText("");
+                  }} style={{ background: activeId === s.id ? '#f97316' : '#27272a', border: 'none', padding: '8px 10px', borderRadius: '8px', fontSize: '10px', color: 'white' }}>{s.startTime.toFixed(1)}s</button>
                 ))}
               </div>
               
