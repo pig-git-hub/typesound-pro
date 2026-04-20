@@ -80,7 +80,7 @@ const App = () => {
             const resp = await fetch(data.downloadURL);
             const ab = await resp.arrayBuffer();
             audioBuffersRef.current[doc.id] = await ctx.decodeAudioData(ab);
-          } catch (e) { console.error("Sound Error", e); }
+          } catch (e) { console.error("Sound Load Error", e); }
         }
       });
       setSoundBank(prev => [...prev.filter(s => s.id.startsWith('local-')), ...sounds]);
@@ -117,7 +117,7 @@ const App = () => {
 
     if (isPlaying) {
       scripts.forEach(s => {
-        // 判定を「0.15秒の幅」に広げて確実にトリガーさせる
+        // 再生中、設定秒数を通過した瞬間だけタイピングを開始
         if (prev < s.startTime && now >= s.startTime) {
           triggerTyping(s);
         }
@@ -155,7 +155,7 @@ const App = () => {
         videoRef.current.currentTime = 0;
         prevTimeRef.current = 0;
       }
-      setDisplayText("");
+      setDisplayText(""); // 再生開始時に表示をクリア
       setIsPlaying(true);
       videoRef.current.play();
     }
@@ -175,9 +175,26 @@ const App = () => {
   const currentScript = scripts.find(s => s.id === activeId) || scripts[0];
   const heavyStroke = `2px 2px 0 ${currentScript.outlineColor}, -2px -2px 0 ${currentScript.outlineColor}, 2px -2px 0 ${currentScript.outlineColor}, -2px 2px 0 ${currentScript.outlineColor}, 4px 4px 10px rgba(0,0,0,0.5)`;
 
+  const CommonTextStyles = {
+    width: '100%',
+    background: 'transparent',
+    border: 'none',
+    outline: 'none',
+    fontSize: `${currentScript.fontSize}px`,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: currentScript.textColor,
+    textShadow: heavyStroke,
+    fontFamily: 'inherit',
+    lineHeight: '1.2',
+    margin: 0,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-all'
+  };
+
   const BigSlider = ({ label, icon, value, min, max, step, onChange }) => (
     <div style={{ marginBottom: '15px', background: '#27272a', padding: '12px', borderRadius: '15px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '8px', color: '#a1a1aa' }}>
         <span>{icon} {label}</span>
         <span style={{ color: '#f97316', fontWeight: 'bold' }}>{value}</span>
       </div>
@@ -186,7 +203,7 @@ const App = () => {
   );
 
   return (
-    <div style={{ backgroundColor: '#09090b', minHeight: '100vh', color: '#e4e4e7', paddingBottom: '110px', fontFamily: 'sans-serif' }}>
+    <div style={{ backgroundColor: '#09090b', minHeight: '100vh', color: '#e4e4e7', paddingBottom: '120px', fontFamily: 'sans-serif' }}>
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '10px' }}>
         
         <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', gap: '5px' }}>
@@ -200,36 +217,27 @@ const App = () => {
           </div>
         </header>
 
-        {/* プレビュー・完全中央固定エリア */}
+        {/* プレビュー枠 */}
         <div style={{ 
           position: 'relative', width: '100%', aspectRatio: aspectRatio === 'portrait' ? '9/16' : '16/9', 
           background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto 10px'
         }}>
           {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} onEnded={() => setIsPlaying(false)} playsInline />}
           
-          {/* ★ 編集・再生を全く同じ Grid + Flex で囲み、絶対に位置をズラさない */}
           <div style={{ 
-            position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', // 物理的な中央
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto'
           }}>
             {!isPlaying ? (
               <textarea 
-                style={{ 
-                  width: '100%', height: 'auto', background: 'transparent', border: 'none', outline: 'none',
-                  fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center',
-                  color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', 
-                  fontFamily: 'inherit', lineHeight: '1.2', overflow: 'hidden'
-                }} 
-                rows={3}
+                style={{ ...CommonTextStyles, resize: 'none' }} 
+                rows={4}
                 value={currentScript.text} 
                 onChange={(e) => updateActive('text', e.target.value)}
                 onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")}
               />
             ) : (
-              <p style={{ 
-                width: '100%', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center',
-                color: currentScript.textColor, textShadow: heavyStroke, whiteSpace: 'pre-wrap', margin: 0, lineHeight: '1.2'
-              }}>{displayText}</p>
+              <p style={CommonTextStyles}>{displayText}</p>
             )}
           </div>
         </div>
@@ -267,13 +275,13 @@ const App = () => {
         <div style={{ background: '#18181b', padding: '15px', borderRadius: '20px' }}>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
             <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} style={{ flex: 1, background: '#27272a', color: 'white', border: '1px solid #3f3f46', borderRadius: '10px', padding: '10px', fontSize: '12px' }}>
-              <option value="default">標準音</option>
+              <option value="default">標準タイピング音</option>
               {soundBank.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
 
           <BigSlider label="ボリューム" icon="🔊" min="0" max="1" step="0.1" value={volume} onChange={setVolume} />
-          <BigSlider label="サイズ" icon="🅰️" min="10" max="150" step="1" value={currentScript.fontSize} onChange={(v) => updateActive('fontSize', parseInt(v))} />
+          <BigSlider label="文字サイズ" icon="🅰️" min="10" max="150" step="1" value={currentScript.fontSize} onChange={(v) => updateActive('fontSize', parseInt(v))} />
           <BigSlider label="スピード" icon="⚡" min="20" max="500" step="10" value={currentScript.speed} onChange={(v) => updateActive('speed', parseInt(v))} />
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
@@ -285,7 +293,7 @@ const App = () => {
 
       {/* 固定再生ボタン */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '15px', background: 'linear-gradient(transparent, #000)', zIndex: 100 }}>
-        <button onClick={handleTogglePlay} style={{ width: '100%', maxWidth: '600px', margin: '0 auto', display: 'block', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '15px', borderRadius: '15px', color: 'white', fontWeight: 'bold', fontSize: '16px' }}>
+        <button onClick={handleTogglePlay} style={{ width: '100%', maxWidth: '600px', margin: '0 auto', display: 'block', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '18px', borderRadius: '18px', color: 'white', fontWeight: 'bold', fontSize: '16px' }}>
           {isPlaying ? '⏸ プレビュー停止' : '▶️ プレビュー再生'}
         </button>
       </div>
