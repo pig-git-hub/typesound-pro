@@ -61,7 +61,7 @@ const App = () => {
       const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
       const id = `local-${Date.now()}`;
       audioBuffersRef.current[id] = audioBuffer;
-      setSoundBank(prev => [...prev, { id, name: file.name }]);
+      setSoundBank(prev => [{ id, name: `(読込中) ${file.name}` }, ...prev]);
       setSelectedSoundId(id);
     } catch (err) { alert("音源エラー"); }
   };
@@ -83,7 +83,10 @@ const App = () => {
           } catch (e) { console.error("Firebase Sound Error", e); }
         }
       });
-      setSoundBank(prev => [...prev.filter(s => s.id.startsWith('local-')), ...sounds]);
+      setSoundBank(prev => {
+        const local = prev.filter(s => s.id.startsWith('local-'));
+        return [...local, ...sounds];
+      });
     });
   }, [user]);
 
@@ -187,31 +190,18 @@ const App = () => {
             }}>
               {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} playsInline />}
               
-              {/* ★ 入力・表示エリア：プレビュー枠いっぱいに広げる */}
+              {/* 入力エリア：上下に広がる余裕を持たせつつ中央寄せ */}
               <div style={{ 
-                position: 'absolute', inset: 0, 
-                display: 'flex', alignItems: 'center', justifyContent: 'center', // 垂直・水平中央
-                padding: '10px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' 
+                position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' 
               }}>
                 {!isPlaying ? (
                   <textarea 
                     style={{ 
-                      width: '100%', 
-                      height: '100%', // ★ ここを100%に。これで上の行が消えません。
-                      background: 'transparent', 
-                      border: 'none', 
-                      outline: 'none', 
-                      fontSize: `${currentScript.fontSize}px`, 
-                      fontWeight: 'bold', 
-                      textAlign: 'center', 
-                      color: currentScript.textColor, 
-                      textShadow: heavyStroke, 
-                      resize: 'none', 
-                      fontFamily: 'inherit', 
-                      lineHeight: '1.2',
-                      // ★ 入力中の文字も中央付近に見えるように調整
-                      display: 'flex',
-                      paddingTop: '20%' 
+                      width: '100%', height: '100%', background: 'transparent', border: 'none', outline: 'none', 
+                      fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', 
+                      color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', 
+                      fontFamily: 'inherit', lineHeight: '1.2', display: 'flex', alignItems: 'center'
                     }} 
                     value={currentScript.text} 
                     onChange={(e) => updateActive('text', e.target.value)} 
@@ -219,16 +209,9 @@ const App = () => {
                   />
                 ) : (
                   <p style={{ 
-                    width: '100%', 
-                    fontSize: `${currentScript.fontSize}px`, 
-                    fontWeight: 'bold', 
-                    textAlign: 'center', 
-                    color: currentScript.textColor, 
-                    textShadow: heavyStroke, 
-                    whiteSpace: 'pre-wrap', 
-                    wordBreak: 'break-all', 
-                    margin: 0, 
-                    lineHeight: '1.2' 
+                    width: '100%', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', 
+                    color: currentScript.textColor, textShadow: heavyStroke, whiteSpace: 'pre-wrap', 
+                    wordBreak: 'break-all', margin: 0, lineHeight: '1.2' 
                   }}>{displayText}</p>
                 )}
               </div>
