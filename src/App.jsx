@@ -37,7 +37,7 @@ const App = () => {
 
   const videoRef = useRef(null);
   const typingTimer = useRef(null);
-  const lastTriggeredId = useRef(null);
+  const prevTimeRef = useRef(0);
   const audioCtxRef = useRef(null);
   const audioBuffersRef = useRef({});
 
@@ -111,17 +111,19 @@ const App = () => {
 
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
-    const time = videoRef.current.currentTime;
-    setCurrentTime(time);
+    const now = videoRef.current.currentTime;
+    const prev = prevTimeRef.current;
+    
+    setCurrentTime(now);
 
-    if (!isPlaying) return;
-
-    // ★ 再生中のタイポアニメーション開始条件を厳密化
-    const active = scripts.find(s => time >= s.startTime && time < s.startTime + 0.2);
-    if (active && active.id !== lastTriggeredId.current) {
-      lastTriggeredId.current = active.id;
-      triggerTyping(active);
+    if (isPlaying) {
+      scripts.forEach(s => {
+        if (prev < s.startTime && now >= s.startTime) {
+          triggerTyping(s);
+        }
+      });
     }
+    prevTimeRef.current = now;
   };
 
   const triggerTyping = (script) => {
@@ -149,7 +151,6 @@ const App = () => {
       setIsPlaying(false);
       if (typingTimer.current) clearInterval(typingTimer.current);
     } else {
-      lastTriggeredId.current = null; // 再生開始時にリセット
       setDisplayText("");
       setIsPlaying(true);
       videoRef.current.play();
@@ -185,7 +186,7 @@ const App = () => {
         <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', justifyContent: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ position: 'relative', width: aspectRatio === 'portrait' ? '300px' : '533px', height: aspectRatio === 'portrait' ? '533px' : '300px', background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
-              {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} playsInline />}
+              {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => { setDuration(e.target.duration); prevTimeRef.current = 0; }} playsInline />}
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' }}>
                 {!isPlaying ? (
                   <textarea style={{ width: '100%', height: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', fontFamily: 'inherit', lineHeight: '1.2', display: 'flex', alignItems: 'center' }} value={currentScript.text} onChange={(e) => updateActive('text', e.target.value)} onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")} />
@@ -196,11 +197,18 @@ const App = () => {
             </div>
 
             <div style={{ background: '#18181b', padding: '12px', borderRadius: '20px', border: '1px solid #27272a', width: aspectRatio === 'portrait' ? '300px' : '533px' }}>
+              
+              {/* ★ 秒数表示の追加 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px', fontWeight: 'bold', color: '#f97316' }}>
+                <span>{currentTime.toFixed(2)}s</span>
+                <span>{duration.toFixed(2)}s</span>
+              </div>
+
               <input type="range" min="0" max={duration || 100} step="0.01" value={currentTime} onChange={(e) => {
                   const nt = parseFloat(e.target.value);
                   if(videoRef.current) videoRef.current.currentTime = nt;
                   setCurrentTime(nt);
-                  lastTriggeredId.current = null; // スクラブ時は一旦リセット
+                  prevTimeRef.current = nt;
                   setDisplayText("");
                 }} style={{ width: '100%', accentColor: '#f97316', marginBottom: '10px' }} />
               
@@ -211,7 +219,13 @@ const App = () => {
                   setActiveId(newId);
                 }} style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>➕ 追加</button>
                 {scripts.map(s => (
-                  <button key={s.id} onClick={() => { setActiveId(s.id); if(videoRef.current) videoRef.current.currentTime = s.startTime; setCurrentTime(s.startTime); setDisplayText(""); }} style={{ background: activeId === s.id ? '#f97316' : '#27272a', border: 'none', padding: '8px 10px', borderRadius: '8px', fontSize: '10px', color: 'white' }}>{s.startTime.toFixed(1)}s</button>
+                  <button key={s.id} onClick={() => { 
+                    setActiveId(s.id); 
+                    if(videoRef.current) videoRef.current.currentTime = s.startTime; 
+                    setCurrentTime(s.startTime); 
+                    prevTimeRef.current = s.startTime;
+                    setDisplayText(""); 
+                  }} style={{ background: activeId === s.id ? '#f97316' : '#27272a', border: 'none', padding: '8px 10px', borderRadius: '8px', fontSize: '10px', color: 'white' }}>{s.startTime.toFixed(2)}s</button>
                 ))}
               </div>
               <button onClick={handleTogglePlay} style={{ width: '100%', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '12px', borderRadius: '12px', color: 'white', fontWeight: '900' }}>{isPlaying ? '⏸ STOP' : '▶️ PLAY'}</button>
@@ -231,6 +245,10 @@ const App = () => {
         <div style={{ position: 'fixed', bottom: '80px', right: '20px', background: '#18181b', padding: '10px', borderRadius: '12px', border: '1px solid #f97316', zIndex: 100 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '100px' }}>
             {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('textColor', c)} style={{ background: c, border: currentScript.textColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%' }} />)}
+          </div>
+          <div style={{ height: '1px', background: '#27272a', margin: '8px 0' }} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '100px' }}>
+            {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('outlineColor', c)} style={{ background: c, border: currentScript.outlineColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%' }} />)}
           </div>
         </div>
       )}
