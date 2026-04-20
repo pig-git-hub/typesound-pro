@@ -113,7 +113,6 @@ const App = () => {
     if (!videoRef.current) return;
     const now = videoRef.current.currentTime;
     const prev = prevTimeRef.current;
-    
     setCurrentTime(now);
 
     if (isPlaying) {
@@ -146,14 +145,23 @@ const App = () => {
   const handleTogglePlay = async () => {
     if (!videoRef.current || !videoSrc) return;
     await initAudio();
+    
     if (isPlaying) {
       videoRef.current.pause();
       setIsPlaying(false);
       if (typingTimer.current) clearInterval(typingTimer.current);
     } else {
+      // 動画が最後なら最初からにする
+      if (videoRef.current.currentTime >= duration) {
+        videoRef.current.currentTime = 0;
+        prevTimeRef.current = 0;
+      }
       setDisplayText("");
       setIsPlaying(true);
-      videoRef.current.play();
+      videoRef.current.play().catch(e => {
+        console.error("Play failed:", e);
+        setIsPlaying(false);
+      });
     }
   };
 
@@ -186,7 +194,18 @@ const App = () => {
         <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', justifyContent: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ position: 'relative', width: aspectRatio === 'portrait' ? '300px' : '533px', height: aspectRatio === 'portrait' ? '533px' : '300px', background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
-              {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => { setDuration(e.target.duration); prevTimeRef.current = 0; }} playsInline />}
+              {videoSrc && (
+                <video 
+                  ref={videoRef} 
+                  key={videoSrc} // ★ 動画変更時にリセットされるようKeyを追加
+                  src={videoSrc} 
+                  style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                  onTimeUpdate={handleTimeUpdate} 
+                  onLoadedMetadata={(e) => { setDuration(e.target.duration); prevTimeRef.current = 0; }} 
+                  onEnded={() => setIsPlaying(false)} // ★ 終わったらボタンを戻す
+                  playsInline 
+                />
+              )}
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto' }}>
                 {!isPlaying ? (
                   <textarea style={{ width: '100%', height: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center', color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', fontFamily: 'inherit', lineHeight: '1.2', display: 'flex', alignItems: 'center' }} value={currentScript.text} onChange={(e) => updateActive('text', e.target.value)} onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")} />
@@ -197,13 +216,10 @@ const App = () => {
             </div>
 
             <div style={{ background: '#18181b', padding: '12px', borderRadius: '20px', border: '1px solid #27272a', width: aspectRatio === 'portrait' ? '300px' : '533px' }}>
-              
-              {/* ★ 秒数表示の追加 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px', fontSize: '12px', fontWeight: 'bold', color: '#f97316' }}>
                 <span>{currentTime.toFixed(2)}s</span>
                 <span>{duration.toFixed(2)}s</span>
               </div>
-
               <input type="range" min="0" max={duration || 100} step="0.01" value={currentTime} onChange={(e) => {
                   const nt = parseFloat(e.target.value);
                   if(videoRef.current) videoRef.current.currentTime = nt;
@@ -219,16 +235,10 @@ const App = () => {
                   setActiveId(newId);
                 }} style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>➕ 追加</button>
                 {scripts.map(s => (
-                  <button key={s.id} onClick={() => { 
-                    setActiveId(s.id); 
-                    if(videoRef.current) videoRef.current.currentTime = s.startTime; 
-                    setCurrentTime(s.startTime); 
-                    prevTimeRef.current = s.startTime;
-                    setDisplayText(""); 
-                  }} style={{ background: activeId === s.id ? '#f97316' : '#27272a', border: 'none', padding: '8px 10px', borderRadius: '8px', fontSize: '10px', color: 'white' }}>{s.startTime.toFixed(2)}s</button>
+                  <button key={s.id} onClick={() => { setActiveId(s.id); if(videoRef.current) videoRef.current.currentTime = s.startTime; setCurrentTime(s.startTime); prevTimeRef.current = s.startTime; setDisplayText(""); }} style={{ background: activeId === s.id ? '#f97316' : '#27272a', border: 'none', padding: '8px 10px', borderRadius: '8px', fontSize: '10px', color: 'white' }}>{s.startTime.toFixed(2)}s</button>
                 ))}
               </div>
-              <button onClick={handleTogglePlay} style={{ width: '100%', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '12px', borderRadius: '12px', color: 'white', fontWeight: '900' }}>{isPlaying ? '⏸ STOP' : '▶️ PLAY'}</button>
+              <button onClick={handleTogglePlay} style={{ width: '100%', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '12px', borderRadius: '12px', color: 'white', fontWeight: '900', cursor: 'pointer' }}>{isPlaying ? '⏸ STOP' : '▶️ PLAY'}</button>
             </div>
           </div>
 
@@ -236,7 +246,7 @@ const App = () => {
             <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>VOL</span><input type="range" min="0" max="1" step="0.1" value={volume} onChange={(e) => setVolume(parseFloat(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
             <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>SIZE</span><input type="range" min="10" max="150" value={currentScript.fontSize} onChange={(e) => updateActive('fontSize', parseInt(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
             <div style={{ textAlign: 'center' }}><span style={{ fontSize: '7px' }}>SPD</span><input type="range" min="20" max="500" step="10" value={currentScript.speed} onChange={(e) => updateActive('speed', parseInt(e.target.value))} style={{ writingMode: 'bt-lr', appearance: 'slider-vertical', width: '4px', height: '60px' }} /></div>
-            <button onClick={() => setShowColorPicker(!showColorPicker)} style={{ background: '#27272a', border: 'none', borderRadius: '8px', width: '35px', height: '35px', fontSize: '14px' }}>🎨</button>
+            <button onClick={() => setShowColorPicker(!showColorPicker)} style={{ background: '#27272a', border: 'none', borderRadius: '8px', width: '35px', height: '35px', fontSize: '14px', cursor: 'pointer' }}>🎨</button>
           </div>
         </div>
       </div>
@@ -244,11 +254,11 @@ const App = () => {
       {showColorPicker && (
         <div style={{ position: 'fixed', bottom: '80px', right: '20px', background: '#18181b', padding: '10px', borderRadius: '12px', border: '1px solid #f97316', zIndex: 100 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '100px' }}>
-            {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('textColor', c)} style={{ background: c, border: currentScript.textColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%' }} />)}
+            {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('textColor', c)} style={{ background: c, border: currentScript.textColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%', cursor: 'pointer' }} />)}
           </div>
           <div style={{ height: '1px', background: '#27272a', margin: '8px 0' }} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '100px' }}>
-            {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('outlineColor', c)} style={{ background: c, border: currentScript.outlineColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%' }} />)}
+            {PRESET_COLORS.map(c => <button key={c} onClick={() => updateActive('outlineColor', c)} style={{ background: c, border: currentScript.outlineColor === c ? '2px solid white' : '1px solid #27272a', width: '18px', height: '18px', borderRadius: '50%', cursor: 'pointer' }} />)}
           </div>
         </div>
       )}
