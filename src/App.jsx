@@ -80,7 +80,7 @@ const App = () => {
             const resp = await fetch(data.downloadURL);
             const ab = await resp.arrayBuffer();
             audioBuffersRef.current[doc.id] = await ctx.decodeAudioData(ab);
-          } catch (e) { console.error("Sound Load Error", e); }
+          } catch (e) { console.error("Sound Error", e); }
         }
       });
       setSoundBank(prev => [...prev.filter(s => s.id.startsWith('local-')), ...sounds]);
@@ -114,9 +114,13 @@ const App = () => {
     const now = videoRef.current.currentTime;
     const prev = prevTimeRef.current;
     setCurrentTime(now);
+
     if (isPlaying) {
       scripts.forEach(s => {
-        if (prev < s.startTime && now >= s.startTime) triggerTyping(s);
+        // 判定を「0.15秒の幅」に広げて確実にトリガーさせる
+        if (prev < s.startTime && now >= s.startTime) {
+          triggerTyping(s);
+        }
       });
     }
     prevTimeRef.current = now;
@@ -196,26 +200,27 @@ const App = () => {
           </div>
         </header>
 
-        {/* プレビュー・中央配置エリア */}
+        {/* プレビュー・完全中央固定エリア */}
         <div style={{ 
           position: 'relative', width: '100%', aspectRatio: aspectRatio === 'portrait' ? '9/16' : '16/9', 
           background: '#000', borderRadius: '20px', overflow: 'hidden', border: '1px solid #27272a', margin: '0 auto 10px'
         }}>
           {videoSrc && <video ref={videoRef} src={videoSrc} style={{ width: '100%', height: '100%', objectFit: 'contain' }} onTimeUpdate={handleTimeUpdate} onLoadedMetadata={(e) => setDuration(e.target.duration)} onEnded={() => setIsPlaying(false)} playsInline />}
           
-          {/* ★ ここが「中央固定」の肝：Flexboxで文字全体を常にど真ん中へ */}
+          {/* ★ 編集・再生を全く同じ Grid + Flex で囲み、絶対に位置をズラさない */}
           <div style={{ 
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', // 物理的な中央
             padding: '20px', zIndex: 10, pointerEvents: isPlaying ? 'none' : 'auto'
           }}>
             {!isPlaying ? (
               <textarea 
                 style={{ 
-                  width: '100%', background: 'transparent', border: 'none', outline: 'none',
+                  width: '100%', height: 'auto', background: 'transparent', border: 'none', outline: 'none',
                   fontSize: `${currentScript.fontSize}px`, fontWeight: 'bold', textAlign: 'center',
                   color: currentScript.textColor, textShadow: heavyStroke, resize: 'none', 
-                  fontFamily: 'inherit', lineHeight: '1.2'
+                  fontFamily: 'inherit', lineHeight: '1.2', overflow: 'hidden'
                 }} 
+                rows={3}
                 value={currentScript.text} 
                 onChange={(e) => updateActive('text', e.target.value)}
                 onFocus={() => currentScript.text.includes("入力") && updateActive('text', "")}
@@ -250,7 +255,7 @@ const App = () => {
               setActiveId(newId);
             }} style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '8px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>➕ 追加</button>
             {scripts.map(s => (
-              <button key={s.id} onClick={() => { setActiveId(s.id); if(videoRef.current) videoRef.current.currentTime = s.startTime; setCurrentTime(s.startTime); prevTimeRef.current = s.startTime; }} style={{ 
+              <button key={s.id} onClick={() => { setActiveId(s.id); if(videoRef.current) videoRef.current.currentTime = s.startTime; setCurrentTime(s.startTime); prevTimeRef.current = s.startTime; setDisplayText(""); }} style={{ 
                 background: activeId === s.id ? '#f97316' : '#27272a', border: activeId === s.id ? '2px solid white' : 'none', 
                 padding: '8px 12px', borderRadius: '8px', color: 'white', fontSize: '11px', whiteSpace: 'nowrap'
               }}>{s.startTime.toFixed(1)}s</button>
@@ -262,7 +267,7 @@ const App = () => {
         <div style={{ background: '#18181b', padding: '15px', borderRadius: '20px' }}>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
             <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} style={{ flex: 1, background: '#27272a', color: 'white', border: '1px solid #3f3f46', borderRadius: '10px', padding: '10px', fontSize: '12px' }}>
-              <option value="default">標準タイピング音</option>
+              <option value="default">標準音</option>
               {soundBank.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
@@ -281,11 +286,10 @@ const App = () => {
       {/* 固定再生ボタン */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '15px', background: 'linear-gradient(transparent, #000)', zIndex: 100 }}>
         <button onClick={handleTogglePlay} style={{ width: '100%', maxWidth: '600px', margin: '0 auto', display: 'block', background: isPlaying ? '#3f3f46' : '#f97316', border: 'none', padding: '15px', borderRadius: '15px', color: 'white', fontWeight: 'bold', fontSize: '16px' }}>
-          {isPlaying ? '⏸ 停止' : '▶️ プレビュー再生'}
+          {isPlaying ? '⏸ プレビュー停止' : '▶️ プレビュー再生'}
         </button>
       </div>
 
-      {/* カラーピッカー（モーダル） */}
       {showColorPicker && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowColorPicker(false)}>
           <div style={{ background: '#18181b', padding: '20px', borderRadius: '20px', width: '90%', maxWidth: '300px' }} onClick={e => e.stopPropagation()}>
