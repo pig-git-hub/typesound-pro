@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 
 // === デザイン（Tailwind CSS）の自動読み込み ===
-// これを入れることで、Vercel環境でも自動的に黒ベースの綺麗なデザインが適用されます
 if (typeof document !== 'undefined' && !document.getElementById('tailwind-cdn')) {
   const script = document.createElement('script');
   script.id = 'tailwind-cdn';
@@ -11,7 +10,6 @@ if (typeof document !== 'undefined' && !document.getElementById('tailwind-cdn'))
 
 const PRESET_COLORS = ['#ffffff', '#ff0000', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#06b6d4', '#f97316', '#71717a', '#000000'];
 
-// ★変更点：ファイル名を半角英数字にし、読み込みパスを「/」始まりで確実にしました
 const DEFAULT_SOUNDS = [
   { id: 'default', name: '💻 標準タイピング音 (電子音)', url: null },
   { id: 'default-enter', name: '⌨️ 標準エンター音 (電子音)', url: null },
@@ -34,14 +32,24 @@ const App = () => {
   
   const [soundBank, setSoundBank] = useState([]);
   const [selectedSoundId, setSelectedSoundId] = useState('default');
-  const [selectedEnterSoundId, setSelectedEnterSoundId] = useState('default-enter'); // 改行音用のState
+  const [selectedEnterSoundId, setSelectedEnterSoundId] = useState('default-enter');
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [scriptToDelete, setScriptToDelete] = useState(null);
 
-  // Undo / Redo 用のState
   const [history, setHistory] = useState([initialScript]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [isUndoRedo, setIsUndoRedo] = useState(false);
+
+  // === 動画書き出し（エクスポート）用のStateとRef ===
+  const [isExporting, setIsExporting] = useState(false);
+  const isExportingRef = useRef(false);
+  const exportCanvasRef = useRef(null);
+  const exportCtxRef = useRef(null);
+  const audioDestRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+
+  useEffect(() => { isExportingRef.current = isExporting; }, [isExporting]);
 
   // === Refs ===
   const videoRef = useRef(null);
@@ -69,7 +77,6 @@ const App = () => {
     return audioCtxRef.current;
   };
 
-  // 通常音とエンター音、両方のデフォルト音源を読み込む
   useEffect(() => {
     const loadSound = async (id) => {
       const sound = DEFAULT_SOUNDS.find(s => s.id === id);
@@ -77,11 +84,11 @@ const App = () => {
         try {
           const ctx = initAudio();
           const response = await fetch(sound.url);
-          if (!response.ok) throw new Error("音源ファイルが見つかりません");
+          if (!response.ok) throw new Error("音源が見つかりません");
           const arrayBuffer = await response.arrayBuffer();
           audioBuffersRef.current[sound.id] = await ctx.decodeAudioData(arrayBuffer);
         } catch (error) {
-          console.warn(`音源(${id})の読み込みに失敗しました。`, error);
+          console.warn(`音源(${id})の読み込み失敗:`, error);
         }
       }
     };
@@ -99,8 +106,6 @@ const App = () => {
       const id = `local-${Date.now()}`;
       audioBuffersRef.current[id] = audioBuffer;
       setSoundBank(prev => [{ id, name: `🎵 ${file.name}` }, ...prev]);
-      
-      // アップロードした時は、とりあえず両方に設定する
       setSelectedSoundId(id);
       setSelectedEnterSoundId(id);
     } catch (err) { 
@@ -108,39 +113,36 @@ const App = () => {
     }
   };
 
-  // 音を鳴らす処理（typeで通常かエンターかを判定）
   const playSound = useCallback((type = 'normal') => {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
       
       const soundId = type === 'enter' ? selectedEnterSoundId : selectedSoundId;
-      if (soundId === 'none') return; // 「なし」の場合は鳴らさない
+      if (soundId === 'none') return;
 
       const gainNode = ctx.createGain();
-      // エンター音は通常より少しだけ音量を大きくして打鍵感を出す
       const currentVolume = type === 'enter' ? volume * 0.4 : volume * 0.3;
       gainNode.gain.setValueAtTime(currentVolume, ctx.currentTime);
+      
+      // スピーカーから音を出す
       gainNode.connect(ctx.destination);
+      
+      // 書き出し（録音）用の出力先にも繋げる
+      if (audioDestRef.current) {
+        gainNode.connect(audioDestRef.current);
+      }
 
       if (soundId !== 'default' && soundId !== 'default-enter' && audioBuffersRef.current[soundId]) {
         const source = ctx.createBufferSource();
         source.buffer = audioBuffersRef.current[soundId];
-        
-        // ★隠し味: 同じ音源でも、エンター音の時はピッチを少し下げて「重い音（ターン！）」にする
-        if (type === 'enter') {
-          source.playbackRate.value = 0.85; 
-        }
-        
+        if (type === 'enter') source.playbackRate.value = 0.85; 
         source.connect(gainNode);
         source.start();
       } else {
-        // デフォルトの電子音（ピコピコ音）
         const osc = ctx.createOscillator();
         osc.type = 'sine';
-        
         if (soundId === 'default-enter') {
-          // エンター用の電子音：少し低くて重い
           osc.frequency.setValueAtTime(300, ctx.currentTime);
           osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.1);
           gainNode.gain.setValueAtTime(currentVolume, ctx.currentTime);
@@ -149,7 +151,6 @@ const App = () => {
           osc.start();
           osc.stop(ctx.currentTime + 0.1);
         } else {
-          // 通常の電子音
           osc.frequency.setValueAtTime(600, ctx.currentTime);
           osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.05);
           gainNode.gain.setValueAtTime(currentVolume, ctx.currentTime);
@@ -164,7 +165,6 @@ const App = () => {
     }
   }, [selectedSoundId, selectedEnterSoundId, volume]);
 
-  // === 計算された総再生時間 ===
   const [videoDuration, setVideoDuration] = useState(0);
   const calculatedDuration = useMemo(() => {
     let maxScriptTime = 5;
@@ -176,7 +176,70 @@ const App = () => {
     return Math.max(finalDuration, 1);
   }, [scripts, videoSrc, videoDuration]);
 
-  // === 同期アニメーションループ ===
+  // === 動画書き出し開始処理 ===
+  const startExport = async () => {
+    setIsExporting(true);
+    setCurrentTime(0);
+    currentTimeRef.current = 0;
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+    }
+    
+    await initAudio();
+    // 録音用の「耳」を作成
+    if (!audioDestRef.current) {
+      audioDestRef.current = audioCtxRef.current.createMediaStreamDestination();
+    }
+
+    // 裏で映像を描画するための透明なキャンバスを作成（HD画質）
+    const cvs = document.createElement('canvas');
+    cvs.width = aspectRatio === 'portrait' ? 720 : 1280;
+    cvs.height = aspectRatio === 'portrait' ? 1280 : 720;
+    exportCanvasRef.current = cvs;
+    exportCtxRef.current = cvs.getContext('2d');
+
+    // 映像ストリームと音声ストリームを合体
+    const videoStream = cvs.captureStream(30);
+    const audioStream = audioDestRef.current.stream;
+    const combined = new MediaStream([...videoStream.getTracks(), ...audioStream.getTracks()]);
+    
+    // スマホ・PC両対応のためのフォーマット判定
+    let mimeType = 'video/webm;codecs=vp8,opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      mimeType = 'video/webm';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'video/mp4'; 
+      }
+    }
+    
+    const recorder = new MediaRecorder(combined, { mimeType });
+    recordedChunksRef.current = [];
+    recorder.ondataavailable = e => {
+      if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+    };
+    
+    // 録画が終わった時の処理（ダウンロード開始）
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+      a.download = `TypeSound_Video.${ext}`;
+      a.click();
+      setIsExporting(false);
+    };
+    
+    mediaRecorderRef.current = recorder;
+    recorder.start();
+    
+    if (videoRef.current && videoSrc) {
+      videoRef.current.play();
+    }
+    setIsPlaying(true);
+  };
+
+  // === 同期アニメーション＆録画ループ ===
   useEffect(() => {
     let animationFrameId;
     let lastTime = performance.now();
@@ -192,13 +255,95 @@ const App = () => {
           newCurrentTime += delta;
         }
 
+        // 再生終了時の処理（録画のストップもここで行う）
         if (newCurrentTime >= calculatedDuration) {
           setIsPlaying(false);
           newCurrentTime = calculatedDuration;
           if (videoRef.current) videoRef.current.pause();
+          
+          if (isExportingRef.current && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.stop();
+          }
         }
 
         setCurrentTime(newCurrentTime);
+
+        // --- 書き出し中のキャンバス描画処理 ---
+        if (isExportingRef.current && exportCtxRef.current && exportCanvasRef.current) {
+          const ctx = exportCtxRef.current;
+          const cvs = exportCanvasRef.current;
+          
+          // 黒で塗りつぶす
+          ctx.fillStyle = '#000';
+          ctx.fillRect(0, 0, cvs.width, cvs.height);
+
+          // 動画を描画
+          if (videoRef.current && videoSrc) {
+            const v = videoRef.current;
+            if (v.videoWidth > 0 && v.videoHeight > 0) {
+              const vRatio = v.videoWidth / v.videoHeight;
+              const cRatio = cvs.width / cvs.height;
+              let drawW, drawH, drawX, drawY;
+              if (vRatio > cRatio) {
+                drawW = cvs.width;
+                drawH = cvs.width / vRatio;
+                drawX = 0;
+                drawY = (cvs.height - drawH) / 2;
+              } else {
+                drawW = cvs.height * vRatio;
+                drawH = cvs.height;
+                drawX = (cvs.width - drawW) / 2;
+                drawY = 0;
+              }
+              ctx.drawImage(v, drawX, drawY, drawW, drawH);
+            }
+          }
+
+          // 文字を描画
+          const sortedScripts = [...scriptsRef.current].sort((a,b) => a.startTime - b.startTime);
+          sortedScripts.forEach((s, index) => {
+            const nextScript = sortedScripts[index + 1];
+            const endTime = nextScript ? nextScript.startTime : Infinity;
+            
+            if (newCurrentTime >= s.startTime && newCurrentTime < endTime) {
+              const charCount = Math.floor((newCurrentTime - s.startTime) / (s.speed / 1000));
+              const visibleText = s.text.substring(0, charCount);
+              
+              if (visibleText) {
+                // スマホ画面の見え方とキャンバスの解像度の比率を合わせる
+                const scale = cvs.width / (aspectRatio === 'portrait' ? 360 : 640);
+                const scaledFontSize = s.fontSize * scale;
+                
+                ctx.font = `900 ${scaledFontSize}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                const lines = visibleText.split('\n');
+                const lineHeight = scaledFontSize * 1.2;
+                const totalHeight = lineHeight * lines.length;
+                let startY = (cvs.height - totalHeight) / 2 + (scaledFontSize / 2);
+
+                lines.forEach(line => {
+                  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                  ctx.shadowBlur = 15 * scale;
+                  ctx.shadowOffsetX = 4 * scale;
+                  ctx.shadowOffsetY = 4 * scale;
+                  
+                  ctx.lineWidth = 4 * scale;
+                  ctx.strokeStyle = s.outlineColor;
+                  ctx.strokeText(line, cvs.width / 2, startY);
+                  
+                  ctx.shadowColor = 'transparent';
+                  ctx.fillStyle = s.textColor;
+                  ctx.fillText(line, cvs.width / 2, startY);
+                  
+                  startY += lineHeight;
+                });
+              }
+            }
+          });
+        }
+        // ----------------------------------------
 
         const sortedScriptsForAudio = [...scriptsRef.current].sort((a,b) => a.startTime - b.startTime);
         sortedScriptsForAudio.forEach((script, index) => {
@@ -216,11 +361,9 @@ const App = () => {
             if (actualChars > prevChars) {
               const newString = script.text.substring(prevChars, actualChars);
               
-              // 改行（Enter）が含まれているかチェック
               if (newString.includes('\n')) {
                 playSound('enter');
               }
-              // スペース・改行以外の普通の文字が含まれているかチェック
               if (newString.replace(/[\s\n]/g, '').length > 0) {
                 playSound('normal');
               }
@@ -240,9 +383,8 @@ const App = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [calculatedDuration, videoSrc, playSound]);
+  }, [calculatedDuration, videoSrc, playSound, aspectRatio]);
 
-  // === 履歴の自動保存 ===
   useEffect(() => {
     if (isUndoRedo) {
       setIsUndoRedo(false);
@@ -285,7 +427,6 @@ const App = () => {
     }
   };
 
-  // === Controls ===
   const handleSeek = (time) => {
     setCurrentTime(time);
     if (videoRef.current) {
@@ -408,7 +549,7 @@ const App = () => {
             
             {videoSrc ? (
               <video ref={videoRef} src={videoSrc} className="w-full h-full object-contain" 
-                     onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} playsInline />
+                     onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} playsInline crossOrigin="anonymous" />
             ) : (
               <div className="text-zinc-700 text-sm flex flex-col items-center gap-2">
                 <span className="text-3xl">🎥</span>
@@ -570,7 +711,6 @@ const App = () => {
             />
           </div>
 
-          {/* 音源選択（通常音と改行音を分割） */}
           <div className="flex gap-2 mb-4">
             <div className="flex-1">
               <div className="text-[10px] font-bold text-zinc-400 mb-1 flex items-center gap-1">📝 通常音</div>
@@ -614,11 +754,34 @@ const App = () => {
         </div>
       </div>
 
+      {/* === 追加：画面下部のボタンエリア（保存ボタン付き） === */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent z-50">
-        <button onClick={handleTogglePlay} className={`w-full max-w-xl mx-auto flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all ${isPlaying ? 'bg-zinc-800 text-white border border-zinc-700' : 'bg-orange-600 text-white hover:bg-orange-500'}`}>
-          {isPlaying ? <>⏸️ 停止</> : <>▶️ プレビュー再生</>}
-        </button>
+        <div className="max-w-xl mx-auto flex gap-3">
+          <button onClick={handleTogglePlay} disabled={isExporting} className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all ${isPlaying ? 'bg-zinc-800 text-white border border-zinc-700' : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700'} disabled:opacity-50`}>
+            {isPlaying ? <>⏸️ 停止</> : <>▶️ 再生</>}
+          </button>
+          <button onClick={startExport} disabled={isExporting} className="flex-[1.5] flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all bg-orange-600 text-white hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed">
+            ⬇️ 動画を保存
+          </button>
+        </div>
       </div>
+
+      {/* 書き出し中のプログレス（待機）画面 */}
+      {isExporting && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+          <div className="flex flex-col items-center justify-center text-center">
+            <div className="w-16 h-16 border-4 border-zinc-700 border-t-orange-500 rounded-full animate-spin mb-6"></div>
+            <h3 className="text-xl font-bold text-white mb-2">動画を書き出しています...</h3>
+            <p className="text-orange-500 text-3xl font-bold font-mono mb-6">
+              {Math.min(100, Math.round((currentTime / calculatedDuration) * 100))}%
+            </p>
+            <p className="text-zinc-400 text-xs font-bold animate-pulse">
+              ※書き出しが終わるまで、この画面を閉じないでください<br/>
+              ※音が出ますのでご注意ください
+            </p>
+          </div>
+        </div>
+      )}
 
       {showColorPicker && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowColorPicker(false)}>
