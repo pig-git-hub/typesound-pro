@@ -1,14 +1,17 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Play, Pause, Monitor, Smartphone, Video, Music, Plus, Trash2, Settings, Palette, Type, Volume2 } from 'lucide-react';
+import { Play, Pause, Monitor, Smartphone, Video, Music, Plus, Trash2, Settings, Palette, Type, Volume2, Undo2, Redo2, CornerDownLeft } from 'lucide-react';
 
 const PRESET_COLORS = ['#ffffff', '#ff0000', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#06b6d4', '#f97316', '#71717a', '#000000'];
 
-// 追加：デフォルトで組み込む音源のリスト
+// デフォルト音源リストに「標準エンター音」を追加
 const DEFAULT_SOUNDS = [
   { id: 'default', name: '💻 標準タイピング音 (電子音)', url: null },
+  { id: 'default-enter', name: '⌨️ 標準エンター音 (電子音)', url: null },
   { id: 'mechanical', name: '⌨️ メカニカル', url: './タイピング-メカニカル単1.mp3' },
   { id: 'pantograph', name: '⌨️ パンタグラフ', url: './タイピング-パンタグラフ単1.mp3' }
 ];
+
+const initialScript = [{ id: '1', startTime: 0, text: "タップして入力", fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" }];
 
 const App = () => {
   // === State ===
@@ -18,22 +21,26 @@ const App = () => {
   const [aspectRatio, setAspectRatio] = useState('portrait');
   const [volume, setVolume] = useState(0.5);
   
-  const [scripts, setScripts] = useState([
-    { id: '1', startTime: 0, text: "タップして入力", fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" }
-  ]);
+  const [scripts, setScripts] = useState(initialScript);
   const [activeId, setActiveId] = useState('1');
   
   const [soundBank, setSoundBank] = useState([]);
   const [selectedSoundId, setSelectedSoundId] = useState('default');
+  const [selectedEnterSoundId, setSelectedEnterSoundId] = useState('default-enter'); // 改行音用のState
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [scriptToDelete, setScriptToDelete] = useState(null);
+
+  // Undo / Redo 用のState
+  const [history, setHistory] = useState([initialScript]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [isUndoRedo, setIsUndoRedo] = useState(false);
 
   // === Refs ===
   const videoRef = useRef(null);
   const audioCtxRef = useRef(null);
   const audioBuffersRef = useRef({});
-  const prevCharCountsRef = useRef({}); // 各スクリプトの「前回再生時の文字数」を記録して音を鳴らすため
+  const prevCharCountsRef = useRef({});
   
-  // Stateをアニメーションループ内で参照するためのRef
   const isPlayingRef = useRef(isPlaying);
   const currentTimeRef = useRef(currentTime);
   const scriptsRef = useRef(scripts);
@@ -54,11 +61,10 @@ const App = () => {
     return audioCtxRef.current;
   };
 
-  // 追加：選択されたデフォルト音源の読み込み処理
+  // 通常音とエンター音、両方のデフォルト音源を読み込む
   useEffect(() => {
-    const loadDefaultSound = async () => {
-      const sound = DEFAULT_SOUNDS.find(s => s.id === selectedSoundId);
-      // urlが設定されており、まだバッファに読み込まれていない場合フェッチする
+    const loadSound = async (id) => {
+      const sound = DEFAULT_SOUNDS.find(s => s.id === id);
       if (sound && sound.url && !audioBuffersRef.current[sound.id]) {
         try {
           const ctx = initAudio();
@@ -67,12 +73,13 @@ const App = () => {
           const arrayBuffer = await response.arrayBuffer();
           audioBuffersRef.current[sound.id] = await ctx.decodeAudioData(arrayBuffer);
         } catch (error) {
-          console.warn("音源の読み込みに失敗しました。GitHub等にアップロードする際、mp3ファイルが同じ階層にあるか確認してください。", error);
+          console.warn(`音源(${id})の読み込みに失敗しました。`, error);
         }
       }
     };
-    loadDefaultSound();
-  }, [selectedSoundId]);
+    loadSound(selectedSoundId);
+    loadSound(selectedEnterSoundId);
+  }, [selectedSoundId, selectedEnterSoundId]);
 
   const handleSoundUpload = async (e) => {
     const file = e.target.files[0];
@@ -84,41 +91,70 @@ const App = () => {
       const id = `local-${Date.now()}`;
       audioBuffersRef.current[id] = audioBuffer;
       setSoundBank(prev => [{ id, name: `🎵 ${file.name}` }, ...prev]);
+      
+      // アップロードした時は、とりあえず両方に設定する
       setSelectedSoundId(id);
+      setSelectedEnterSoundId(id);
     } catch (err) { 
       alert("音源の読み込みに失敗しました。"); 
     }
   };
 
-  const playSound = useCallback(() => {
+  // 音を鳴らす処理（typeで通常かエンターかを判定）
+  const playSound = useCallback((type = 'normal') => {
     try {
       const ctx = audioCtxRef.current;
       if (!ctx) return;
+      
+      const soundId = type === 'enter' ? selectedEnterSoundId : selectedSoundId;
+      if (soundId === 'none') return; // 「なし」の場合は鳴らさない
+
       const gainNode = ctx.createGain();
-      gainNode.gain.setValueAtTime(volume * 0.3, ctx.currentTime);
+      // エンター音は通常より少しだけ音量を大きくして打鍵感を出す
+      const currentVolume = type === 'enter' ? volume * 0.4 : volume * 0.3;
+      gainNode.gain.setValueAtTime(currentVolume, ctx.currentTime);
       gainNode.connect(ctx.destination);
 
-      if (selectedSoundId !== 'default' && audioBuffersRef.current[selectedSoundId]) {
+      if (soundId !== 'default' && soundId !== 'default-enter' && audioBuffersRef.current[soundId]) {
         const source = ctx.createBufferSource();
-        source.buffer = audioBuffersRef.current[selectedSoundId];
+        source.buffer = audioBuffersRef.current[soundId];
+        
+        // ★隠し味: 同じ音源でも、エンター音の時はピッチを少し下げて「重い音（ターン！）」にする
+        if (type === 'enter') {
+          source.playbackRate.value = 0.85; 
+        }
+        
         source.connect(gainNode);
         source.start();
       } else {
-        // デフォルトの電子音フォールバック
+        // デフォルトの電子音（ピコピコ音）
         const osc = ctx.createOscillator();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(600, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.05);
-        gainNode.gain.setValueAtTime(volume * 0.3, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-        osc.connect(gainNode);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.05);
+        
+        if (soundId === 'default-enter') {
+          // エンター用の電子音：少し低くて重い
+          osc.frequency.setValueAtTime(300, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.1);
+          gainNode.gain.setValueAtTime(currentVolume, ctx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+          osc.connect(gainNode);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.1);
+        } else {
+          // 通常の電子音
+          osc.frequency.setValueAtTime(600, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.05);
+          gainNode.gain.setValueAtTime(currentVolume, ctx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+          osc.connect(gainNode);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.05);
+        }
       }
     } catch (e) {
       console.error("Audio playback error", e);
     }
-  }, [selectedSoundId, volume]);
+  }, [selectedSoundId, selectedEnterSoundId, volume]);
 
   // === 計算された総再生時間 ===
   const [videoDuration, setVideoDuration] = useState(0);
@@ -171,8 +207,14 @@ const App = () => {
             
             if (actualChars > prevChars) {
               const newString = script.text.substring(prevChars, actualChars);
+              
+              // 改行（Enter）が含まれているかチェック
+              if (newString.includes('\n')) {
+                playSound('enter');
+              }
+              // スペース・改行以外の普通の文字が含まれているかチェック
               if (newString.replace(/[\s\n]/g, '').length > 0) {
-                playSound();
+                playSound('normal');
               }
             }
             prevCharCountsRef.current[script.id] = actualChars;
@@ -191,6 +233,49 @@ const App = () => {
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
   }, [calculatedDuration, videoSrc, playSound]);
+
+  // === 履歴の自動保存 ===
+  useEffect(() => {
+    if (isUndoRedo) {
+      setIsUndoRedo(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setHistory(prev => {
+        const currentHistory = prev.slice(0, historyIndex + 1);
+        if (JSON.stringify(currentHistory[currentHistory.length - 1]) === JSON.stringify(scripts)) {
+          return prev;
+        }
+        const newHistory = [...currentHistory, scripts];
+        if (newHistory.length > 30) newHistory.shift();
+        setHistoryIndex(newHistory.length - 1);
+        return newHistory;
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [scripts, historyIndex, isUndoRedo]);
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      setIsUndoRedo(true);
+      const prevIndex = historyIndex - 1;
+      const prevScripts = history[prevIndex];
+      setHistoryIndex(prevIndex);
+      setScripts(prevScripts);
+      if (!prevScripts.find(s => s.id === activeId)) setActiveId(prevScripts[0].id);
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      setIsUndoRedo(true);
+      const nextIndex = historyIndex + 1;
+      const nextScripts = history[nextIndex];
+      setHistoryIndex(nextIndex);
+      setScripts(nextScripts);
+      if (!nextScripts.find(s => s.id === activeId)) setActiveId(nextScripts[0].id);
+    }
+  };
 
   // === Controls ===
   const handleSeek = (time) => {
@@ -237,15 +322,21 @@ const App = () => {
 
   const deleteScript = (id) => {
     if (scripts.length <= 1) return;
-    const nextScripts = scripts.filter(s => s.id !== id);
+    setScriptToDelete(id);
+  };
+
+  const confirmDelete = () => {
+    if (!scriptToDelete) return;
+    const nextScripts = scripts.filter(s => s.id !== scriptToDelete);
     setScripts(nextScripts);
     setActiveId(nextScripts[0].id);
+    setScriptToDelete(null);
   };
 
   const addScript = () => {
     const newId = Date.now().toString();
     setScripts([...scripts, { 
-      id: newId, startTime: currentTime, text: "新規字幕", 
+      id: newId, startTime: currentTime, text: "新規字幕\n改行テスト", 
       fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" 
     }]);
     setActiveId(newId);
@@ -270,14 +361,26 @@ const App = () => {
       <div className="max-w-xl mx-auto p-4">
         
         <header className="flex justify-between items-center mb-4 gap-2">
-          <div className="flex gap-2 bg-zinc-900 p-1 rounded-lg">
-            <button onClick={() => setAspectRatio('portrait')} className={`p-2 rounded-md transition ${aspectRatio === 'portrait' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500'}`}>
-              <Smartphone size={18} />
-            </button>
-            <button onClick={() => setAspectRatio('landscape')} className={`p-2 rounded-md transition ${aspectRatio === 'landscape' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500'}`}>
-              <Monitor size={18} />
-            </button>
+          <div className="flex gap-2">
+            <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg">
+              <button onClick={() => setAspectRatio('portrait')} className={`p-2 rounded-md transition ${aspectRatio === 'portrait' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                <Smartphone size={18} />
+              </button>
+              <button onClick={() => setAspectRatio('landscape')} className={`p-2 rounded-md transition ${aspectRatio === 'landscape' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+                <Monitor size={18} />
+              </button>
+            </div>
+            
+            <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg">
+              <button onClick={handleUndo} disabled={historyIndex === 0} className={`p-2 rounded-md transition ${historyIndex === 0 ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-300 hover:text-white hover:bg-zinc-800'}`}>
+                <Undo2 size={18} />
+              </button>
+              <button onClick={handleRedo} disabled={historyIndex >= history.length - 1} className={`p-2 rounded-md transition ${historyIndex >= history.length - 1 ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-300 hover:text-white hover:bg-zinc-800'}`}>
+                <Redo2 size={18} />
+              </button>
+            </div>
           </div>
+
           <div className="flex gap-2">
             <label className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 transition px-3 py-2 rounded-lg text-xs font-bold cursor-pointer">
               <Video size={16} className="text-blue-400" />
@@ -376,16 +479,22 @@ const App = () => {
                   return (
                     <textarea
                       key={s.id}
+                      ref={el => {
+                        if (el) {
+                          el.style.height = 'auto';
+                          el.style.height = el.scrollHeight + 'px';
+                        }
+                      }}
                       value={s.text}
                       onChange={(e) => updateActive('text', e.target.value)}
                       onFocus={() => {
-                        if (s.text === "タップして入力" || s.text === "新規字幕") {
+                        if (s.text === "タップして入力" || s.text === "新規字幕\n改行テスト") {
                           updateActive('text', "");
                         }
                       }}
                       className="w-full text-center bg-transparent border-none outline-none resize-none overflow-hidden placeholder-white/30"
-                      style={textStyle}
-                      rows={4}
+                      style={{ ...textStyle, minHeight: '1em' }}
+                      rows={1}
                       placeholder="タップして入力"
                     />
                   );
@@ -407,18 +516,22 @@ const App = () => {
               <span className="leading-none">追加</span>
             </button>
             
-            <div className="flex flex-col gap-2 overflow-y-auto pb-4 custom-scrollbar" 
-                 style={{ maxHeight: aspectRatio === 'portrait' ? '65vh' : '35vh' }}>
+            <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar" 
+                 style={{ maxHeight: aspectRatio === 'portrait' ? '55vh' : '25vh' }}>
               {[...scripts].sort((a,b) => a.startTime - b.startTime).map((s, index) => (
                 <button key={s.id} onClick={() => { setActiveId(s.id); handleSeek(s.startTime); }} 
-                        className={`w-full aspect-square flex flex-col items-center justify-center rounded-2xl text-[10px] font-bold transition border ${activeId === s.id ? 'bg-orange-600 border-orange-400 text-white shadow-lg scale-105' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}`}>
+                        className={`w-full aspect-square flex-shrink-0 flex flex-col items-center justify-center rounded-2xl text-[10px] font-bold transition border ${activeId === s.id ? 'bg-orange-600 border-orange-400 text-white shadow-lg scale-105' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:bg-zinc-700'}`}>
                   <span className="text-[9px] opacity-70 mb-1">L.{index + 1}</span>
                   <span className="leading-none">{s.startTime.toFixed(1)}s</span>
                 </button>
               ))}
             </div>
-          </div>
 
+            <button onClick={() => deleteScript(activeId)} className="w-full aspect-square bg-red-950/50 hover:bg-red-900 border border-red-900/50 text-red-500 hover:text-white rounded-2xl text-[10px] font-bold transition flex flex-col items-center justify-center gap-1 shadow-lg mt-auto">
+              <Trash2 size={18} />
+              <span className="leading-none">削除</span>
+            </button>
+          </div>
         </div>
 
         <div className="bg-zinc-900 p-4 rounded-2xl mb-4 border border-zinc-800">
@@ -437,35 +550,59 @@ const App = () => {
               <span className="flex items-center gap-1"><Type size={14} /> テキスト編集</span>
             </div>
             <textarea 
+              ref={el => {
+                if (el) {
+                  el.style.height = 'auto';
+                  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+                }
+              }}
               value={currentScript.text}
               onChange={(e) => updateActive('text', e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-white resize-none focus:outline-none focus:border-orange-500 transition"
-              rows={3} placeholder="ここに入力した文字がタイピングされます"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-white resize-none focus:outline-none focus:border-orange-500 transition overflow-y-auto custom-scrollbar"
+              rows={3} 
+              placeholder="ここに入力した文字がタイピングされます"
             />
           </div>
 
+          {/* 音源選択（通常音と改行音を分割） */}
           <div className="flex gap-2 mb-4">
-            <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} 
-                    className="flex-1 bg-zinc-800 text-xs text-white border border-zinc-700 rounded-xl px-3 py-2.5 focus:outline-none">
-              <optgroup label="デフォルト音源">
-                {DEFAULT_SOUNDS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </optgroup>
-              {soundBank.length > 0 && (
-                <optgroup label="自分で追加した音源">
-                  {soundBank.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <div className="flex-1">
+              <div className="text-[10px] font-bold text-zinc-400 mb-1 flex items-center gap-1"><Type size={12}/> 通常音</div>
+              <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} 
+                      className="w-full bg-zinc-800 text-xs text-white border border-zinc-700 rounded-xl px-3 py-2.5 focus:outline-none focus:border-orange-500 transition">
+                <optgroup label="デフォルト音源">
+                  {DEFAULT_SOUNDS.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </optgroup>
-              )}
-            </select>
+                {soundBank.length > 0 && (
+                  <optgroup label="自分で追加した音源">
+                    {soundBank.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+            
+            <div className="flex-1">
+              <div className="text-[10px] font-bold text-zinc-400 mb-1 flex items-center gap-1"><CornerDownLeft size={12}/> 改行 (Enter) 音</div>
+              <select value={selectedEnterSoundId} onChange={(e) => setSelectedEnterSoundId(e.target.value)} 
+                      className="w-full bg-zinc-800 text-xs text-white border border-zinc-700 rounded-xl px-3 py-2.5 focus:outline-none focus:border-orange-500 transition">
+                <option value="none">🔇 なし (鳴らさない)</option>
+                <optgroup label="デフォルト音源">
+                  {DEFAULT_SOUNDS.map(s => <option key={`enter-${s.id}`} value={s.id}>{s.name}</option>)}
+                </optgroup>
+                {soundBank.length > 0 && (
+                  <optgroup label="自分で追加した音源">
+                    {soundBank.map(s => <option key={`enter-${s.id}`} value={s.id}>{s.name}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </div>
           </div>
 
           <Slider label="音量" icon={<Volume2 size={14}/>} min={0} max={1} step={0.1} value={volume} onChange={setVolume} />
 
           <div className="flex gap-2 mt-4">
-            <button onClick={() => setShowColorPicker(true)} className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl py-3 text-sm font-bold transition">
+            <button onClick={() => setShowColorPicker(true)} className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl py-3 text-sm font-bold transition">
               <Palette size={16} /> 色・縁取り設定
-            </button>
-            <button onClick={() => deleteScript(activeId)} className="flex items-center justify-center gap-1 bg-red-950/50 text-red-500 hover:bg-red-900 hover:text-white border border-red-900/50 rounded-xl px-4 text-sm font-bold transition">
-              <Trash2 size={16} /> 削除
             </button>
           </div>
         </div>
@@ -501,6 +638,26 @@ const App = () => {
             <button onClick={() => setShowColorPicker(false)} className="w-full bg-zinc-800 text-white font-bold py-3 rounded-xl hover:bg-zinc-700 transition">
               完了
             </button>
+          </div>
+        </div>
+      )}
+
+      {scriptToDelete && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setScriptToDelete(null)}>
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-2 text-red-500">
+              <Trash2 size={24} />
+              <h3 className="text-lg font-bold">レイヤーを削除しますか？</h3>
+            </div>
+            <p className="text-sm text-zinc-400 mb-6 ml-9">削除したレイヤーは、上の「元に戻す」ボタンから復元することも可能です。</p>
+            <div className="flex gap-3">
+              <button onClick={() => setScriptToDelete(null)} className="flex-1 bg-zinc-800 text-white font-bold py-3 rounded-xl hover:bg-zinc-700 transition">
+                キャンセル
+              </button>
+              <button onClick={confirmDelete} className="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/50">
+                削除する
+              </button>
+            </div>
           </div>
         </div>
       )}
