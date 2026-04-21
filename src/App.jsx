@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Play, Pause, Monitor, Smartphone, Video, Music, Plus, Trash2, Settings, Palette, Type, Volume2, Undo2, Redo2, CornerDownLeft } from 'lucide-react';
+// ↓ Settings を削除しました
+import { Play, Pause, Monitor, Smartphone, Video, Music, Plus, Trash2, Palette, Type, Volume2, Undo2, Redo2, CornerDownLeft } from 'lucide-react';
 
 const PRESET_COLORS = ['#ffffff', '#ff0000', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#06b6d4', '#f97316', '#71717a', '#000000'];
 
