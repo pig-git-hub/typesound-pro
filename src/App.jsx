@@ -1,6 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 
-// lucide-react (外部アイコン) のインポートを削除し、エラーの原因を完全に無くしました
+// === デザイン（Tailwind CSS）の自動読み込み ===
+// これを入れることで、Vercel環境でも自動的に黒ベースの綺麗なデザインが適用されます
+if (typeof document !== 'undefined' && !document.getElementById('tailwind-cdn')) {
+  const script = document.createElement('script');
+  script.id = 'tailwind-cdn';
+  script.src = 'https://cdn.tailwindcss.com';
+  document.head.appendChild(script);
+}
 
 const PRESET_COLORS = ['#ffffff', '#ff0000', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#06b6d4', '#f97316', '#71717a', '#000000'];
 
