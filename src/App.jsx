@@ -698,6 +698,40 @@ const App = () => {
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2 text-xs font-bold text-zinc-400">
               <span className="flex items-center gap-1">📝 テキスト編集</span>
+              <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-lg border border-zinc-800">
+                <span className="pl-1 text-orange-500">⏱️</span>
+                <button 
+                  onClick={() => {
+                    const val = Math.max(0, currentScript.startTime - 0.1);
+                    updateActive('startTime', val);
+                    handleSeek(val);
+                  }}
+                  className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 hover:text-white hover:bg-zinc-700 transition"
+                >-</button>
+                <input 
+                  type="number" 
+                  step="0.1" 
+                  min="0"
+                  value={Number(currentScript.startTime).toFixed(1)} 
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0) {
+                      updateActive('startTime', val);
+                      handleSeek(val);
+                    }
+                  }}
+                  className="bg-transparent text-white text-xs w-8 text-center outline-none focus:text-orange-500"
+                />
+                <span className="text-zinc-500 text-[10px] pr-1">s</span>
+                <button 
+                  onClick={() => {
+                    const val = currentScript.startTime + 0.1;
+                    updateActive('startTime', val);
+                    handleSeek(val);
+                  }}
+                  className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 hover:text-white hover:bg-zinc-700 transition"
+                >+</button>
+              </div>
             </div>
             <textarea 
               ref={el => {
