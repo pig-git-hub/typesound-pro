@@ -509,7 +509,7 @@ const App = () => {
     <div className="min-h-screen bg-zinc-950 text-zinc-200 font-sans pb-32">
       <div className="max-w-xl mx-auto p-4">
         
-        <header className="flex justify-between items-center mb-4 gap-2">
+        <header className="flex flex-wrap justify-between items-center mb-4 gap-2">
           <div className="flex gap-2">
             <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg">
               <button onClick={() => setAspectRatio('portrait')} className={`p-2 rounded-md transition ${aspectRatio === 'portrait' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
@@ -531,15 +531,18 @@ const App = () => {
           </div>
 
           <div className="flex gap-2">
-            <label className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 transition px-3 py-2 rounded-lg text-xs font-bold cursor-pointer">
-              🎥 動画選択
+            <label className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 transition px-3 py-2 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap">
+              🎥 動画
               <input type="file" accept="video/*" className="hidden" 
                      onChange={(e) => e.target.files[0] && setVideoSrc(URL.createObjectURL(e.target.files[0]))} />
             </label>
-            <label className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 transition px-3 py-2 rounded-lg text-xs font-bold cursor-pointer">
-              🎵 音源追加
+            <label className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 transition px-3 py-2 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap">
+              🎵 音源
               <input type="file" accept="audio/*" className="hidden" onChange={handleSoundUpload} />
             </label>
+            <button onClick={startExport} disabled={isExporting} className="flex items-center gap-1 bg-orange-600 hover:bg-orange-500 text-white transition px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-lg shadow-orange-900/50">
+              ⬇️ 保存
+            </button>
           </div>
         </header>
 
@@ -754,16 +757,10 @@ const App = () => {
         </div>
       </div>
 
-      {/* === 追加：画面下部のボタンエリア（保存ボタン付き） === */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent z-50">
-        <div className="max-w-xl mx-auto flex gap-3">
-          <button onClick={handleTogglePlay} disabled={isExporting} className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all ${isPlaying ? 'bg-zinc-800 text-white border border-zinc-700' : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700'} disabled:opacity-50`}>
-            {isPlaying ? <>⏸️ 停止</> : <>▶️ 再生</>}
-          </button>
-          <button onClick={startExport} disabled={isExporting} className="flex-[1.5] flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all bg-orange-600 text-white hover:bg-orange-500 disabled:opacity-50 disabled:cursor-not-allowed">
-            ⬇️ 動画を保存
-          </button>
-        </div>
+        <button onClick={handleTogglePlay} disabled={isExporting} className={`w-full max-w-xl mx-auto flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all ${isPlaying ? 'bg-zinc-800 text-white border border-zinc-700' : 'bg-orange-600 text-white hover:bg-orange-500'} disabled:opacity-50`}>
+          {isPlaying ? <>⏸️ 停止</> : <>▶️ プレビュー再生</>}
+        </button>
       </div>
 
       {/* 書き出し中のプログレス（待機）画面 */}
