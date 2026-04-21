@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-// ↓ Settings を削除しました
-import { Play, Pause, Monitor, Smartphone, Video, Music, Plus, Trash2, Palette, Type, Volume2, Undo2, Redo2, CornerDownLeft } from 'lucide-react';
+
+// lucide-react (外部アイコン) のインポートを削除し、エラーの原因を完全に無くしました
 
 const PRESET_COLORS = ['#ffffff', '#ff0000', '#22c55e', '#3b82f6', '#eab308', '#ec4899', '#06b6d4', '#f97316', '#71717a', '#000000'];
 
@@ -365,33 +365,31 @@ const App = () => {
           <div className="flex gap-2">
             <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg">
               <button onClick={() => setAspectRatio('portrait')} className={`p-2 rounded-md transition ${aspectRatio === 'portrait' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                <Smartphone size={18} />
+                📱
               </button>
               <button onClick={() => setAspectRatio('landscape')} className={`p-2 rounded-md transition ${aspectRatio === 'landscape' ? 'bg-zinc-800 text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
-                <Monitor size={18} />
+                💻
               </button>
             </div>
             
             <div className="flex gap-1 bg-zinc-900 p-1 rounded-lg">
-              <button onClick={handleUndo} disabled={historyIndex === 0} className={`p-2 rounded-md transition ${historyIndex === 0 ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-300 hover:text-white hover:bg-zinc-800'}`}>
-                <Undo2 size={18} />
+              <button onClick={handleUndo} disabled={historyIndex === 0} className={`p-2 rounded-md transition ${historyIndex === 0 ? 'text-zinc-700 cursor-not-allowed opacity-50' : 'text-zinc-300 hover:text-white hover:bg-zinc-800'}`}>
+                ↩️
               </button>
-              <button onClick={handleRedo} disabled={historyIndex >= history.length - 1} className={`p-2 rounded-md transition ${historyIndex >= history.length - 1 ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-300 hover:text-white hover:bg-zinc-800'}`}>
-                <Redo2 size={18} />
+              <button onClick={handleRedo} disabled={historyIndex >= history.length - 1} className={`p-2 rounded-md transition ${historyIndex >= history.length - 1 ? 'text-zinc-700 cursor-not-allowed opacity-50' : 'text-zinc-300 hover:text-white hover:bg-zinc-800'}`}>
+                ↪️
               </button>
             </div>
           </div>
 
           <div className="flex gap-2">
             <label className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 transition px-3 py-2 rounded-lg text-xs font-bold cursor-pointer">
-              <Video size={16} className="text-blue-400" />
-              動画選択
+              🎥 動画選択
               <input type="file" accept="video/*" className="hidden" 
                      onChange={(e) => e.target.files[0] && setVideoSrc(URL.createObjectURL(e.target.files[0]))} />
             </label>
             <label className="flex items-center gap-1 bg-zinc-800 hover:bg-zinc-700 transition px-3 py-2 rounded-lg text-xs font-bold cursor-pointer">
-              <Music size={16} className="text-pink-400" />
-              音源追加
+              🎵 音源追加
               <input type="file" accept="audio/*" className="hidden" onChange={handleSoundUpload} />
             </label>
           </div>
@@ -406,14 +404,14 @@ const App = () => {
                      onLoadedMetadata={(e) => setVideoDuration(e.target.duration)} playsInline />
             ) : (
               <div className="text-zinc-700 text-sm flex flex-col items-center gap-2">
-                <Video size={32} />
+                <span className="text-3xl">🎥</span>
                 <p>動画なし（プレビューのみ）</p>
               </div>
             )}
 
             <div className="absolute left-3 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 z-30 bg-zinc-950/80 backdrop-blur-md p-2 rounded-full border border-zinc-800 shadow-xl"
                  onClick={(e) => e.stopPropagation()}>
-              <Type size={14} className="text-zinc-400" />
+              <span className="text-zinc-400 text-xs">🅰️</span>
               <div className="relative w-6 h-28">
                 <input type="range" min="10" max="150" value={currentScript.fontSize}
                        onChange={(e) => updateActive('fontSize', parseInt(e.target.value))}
@@ -513,7 +511,7 @@ const App = () => {
 
           <div className="w-[64px] flex-shrink-0 flex flex-col gap-2">
             <button onClick={addScript} className="w-full aspect-square bg-blue-600 hover:bg-blue-500 text-white rounded-2xl text-[10px] font-bold transition flex flex-col items-center justify-center gap-1 shadow-lg">
-              <Plus size={18} />
+              <span className="text-lg">➕</span>
               <span className="leading-none">追加</span>
             </button>
             
@@ -529,7 +527,7 @@ const App = () => {
             </div>
 
             <button onClick={() => deleteScript(activeId)} className="w-full aspect-square bg-red-950/50 hover:bg-red-900 border border-red-900/50 text-red-500 hover:text-white rounded-2xl text-[10px] font-bold transition flex flex-col items-center justify-center gap-1 shadow-lg mt-auto">
-              <Trash2 size={18} />
+              <span className="text-lg">🗑️</span>
               <span className="leading-none">削除</span>
             </button>
           </div>
@@ -548,7 +546,7 @@ const App = () => {
         <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2 text-xs font-bold text-zinc-400">
-              <span className="flex items-center gap-1"><Type size={14} /> テキスト編集</span>
+              <span className="flex items-center gap-1">📝 テキスト編集</span>
             </div>
             <textarea 
               ref={el => {
@@ -568,7 +566,7 @@ const App = () => {
           {/* 音源選択（通常音と改行音を分割） */}
           <div className="flex gap-2 mb-4">
             <div className="flex-1">
-              <div className="text-[10px] font-bold text-zinc-400 mb-1 flex items-center gap-1"><Type size={12}/> 通常音</div>
+              <div className="text-[10px] font-bold text-zinc-400 mb-1 flex items-center gap-1">📝 通常音</div>
               <select value={selectedSoundId} onChange={(e) => setSelectedSoundId(e.target.value)} 
                       className="w-full bg-zinc-800 text-xs text-white border border-zinc-700 rounded-xl px-3 py-2.5 focus:outline-none focus:border-orange-500 transition">
                 <optgroup label="デフォルト音源">
@@ -583,7 +581,7 @@ const App = () => {
             </div>
             
             <div className="flex-1">
-              <div className="text-[10px] font-bold text-zinc-400 mb-1 flex items-center gap-1"><CornerDownLeft size={12}/> 改行 (Enter) 音</div>
+              <div className="text-[10px] font-bold text-zinc-400 mb-1 flex items-center gap-1">⏎ 改行 (Enter) 音</div>
               <select value={selectedEnterSoundId} onChange={(e) => setSelectedEnterSoundId(e.target.value)} 
                       className="w-full bg-zinc-800 text-xs text-white border border-zinc-700 rounded-xl px-3 py-2.5 focus:outline-none focus:border-orange-500 transition">
                 <option value="none">🔇 なし (鳴らさない)</option>
@@ -599,11 +597,11 @@ const App = () => {
             </div>
           </div>
 
-          <Slider label="音量" icon={<Volume2 size={14}/>} min={0} max={1} step={0.1} value={volume} onChange={setVolume} />
+          <Slider label="音量" icon="🔊" min={0} max={1} step={0.1} value={volume} onChange={setVolume} />
 
           <div className="flex gap-2 mt-4">
             <button onClick={() => setShowColorPicker(true)} className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl py-3 text-sm font-bold transition">
-              <Palette size={16} /> 色・縁取り設定
+              🎨 色・縁取り設定
             </button>
           </div>
         </div>
@@ -611,14 +609,14 @@ const App = () => {
 
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent z-50">
         <button onClick={handleTogglePlay} className={`w-full max-w-xl mx-auto flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-lg shadow-xl transition-all ${isPlaying ? 'bg-zinc-800 text-white border border-zinc-700' : 'bg-orange-600 text-white hover:bg-orange-500'}`}>
-          {isPlaying ? <><Pause fill="currentColor" /> 停止</> : <><Play fill="currentColor" /> プレビュー再生</>}
+          {isPlaying ? <>⏸️ 停止</> : <>▶️ プレビュー再生</>}
         </button>
       </div>
 
       {showColorPicker && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowColorPicker(false)}>
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl w-full max-w-xs shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-zinc-400 mb-3 flex items-center gap-2"><Palette size={16}/> 文字色</h3>
+            <h3 className="text-sm font-bold text-zinc-400 mb-3 flex items-center gap-2">🎨 文字色</h3>
             <div className="flex flex-wrap gap-2 mb-6">
               {PRESET_COLORS.map(c => (
                 <button key={`text-${c}`} onClick={() => updateActive('textColor', c)} 
@@ -627,7 +625,7 @@ const App = () => {
               ))}
             </div>
             
-            <h3 className="text-sm font-bold text-zinc-400 mb-3 flex items-center gap-2"><Palette size={16}/> 縁の色</h3>
+            <h3 className="text-sm font-bold text-zinc-400 mb-3 flex items-center gap-2">🎨 縁の色</h3>
             <div className="flex flex-wrap gap-2 mb-6">
               {PRESET_COLORS.map(c => (
                 <button key={`outline-${c}`} onClick={() => updateActive('outlineColor', c)} 
@@ -647,7 +645,7 @@ const App = () => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={() => setScriptToDelete(null)}>
           <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-2 text-red-500">
-              <Trash2 size={24} />
+              <span className="text-2xl">🗑️</span>
               <h3 className="text-lg font-bold">レイヤーを削除しますか？</h3>
             </div>
             <p className="text-sm text-zinc-400 mb-6 ml-9">削除したレイヤーは、上の「元に戻す」ボタンから復元することも可能です。</p>
