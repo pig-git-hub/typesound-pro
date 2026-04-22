@@ -101,6 +101,7 @@ const DEFAULT_SOUNDS = [
   { id: 'default', name: '💻 標準タイピング音 (電子音)', url: null },
   { id: 'default-enter', name: '⌨️ 標準エンター音 (電子音)', url: null },
   { id: 'mechanical', name: '⌨️ メカニカル', url: './タイピング-メカニカル単1.mp3' },
+  { id: 'mechanical2', name: '⌨️ メカニカル2', url: './タイピング-メカニカル単3.mp3' },
   { id: 'pantograph', name: '⌨️ パンタグラフ', url: './タイピング-パンタグラフ単1.mp3' }
 ];
 
