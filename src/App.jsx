@@ -100,9 +100,9 @@ const PRESET_COLORS = ['#ffffff', '#ff0000', '#22c55e', '#3b82f6', '#eab308', '#
 const DEFAULT_SOUNDS = [
   { id: 'default', name: '💻 標準タイピング音 (電子音)', url: null },
   { id: 'default-enter', name: '⌨️ 標準エンター音 (電子音)', url: null },
-  { id: 'mechanical', name: '⌨️ メカニカル', url: './タイピング-メカニカル単1.mp3' },
-  { id: 'mechanical2', name: '⌨️ メカニカル2', url: './タイピング-メカニカル単3.mp3' },
-  { id: 'pantograph', name: '⌨️ パンタグラフ', url: './タイピング-パンタグラフ単1.mp3' }
+  { id: 'mechanical', name: '⌨️ メカニカル', url: './mechanical.mp3' },
+  { id: 'mechanical2', name: '⌨️ メカニカル2', url: './2.mp3' },
+  { id: 'pantograph', name: '⌨️ パンタグラフ', url: './pantograph.mp3' }
 ];
 
 const initialScript = [{ id: '1', startTime: 0, text: "タップして入力", fontSize: 40, speed: 100, textColor: "#ffffff", outlineColor: "#000000" }];
